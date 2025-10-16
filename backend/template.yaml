@@ -1,0 +1,41 @@
+# backend/template.yaml
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  Backend for my webapp, driven by OpenAPI specification.
+
+# 新增：定义一个参数，用于从外部接收 Cognito 用户池 ID
+Parameters:
+  MyCognitoUserPoolId:
+    Type: String
+    Description: The ID of the Cognito User Pool for authorization.
+
+Resources:
+  # API Gateway 现在完全由 openapi.template.yaml 文件定义
+  MyApiGateway:
+    Type: AWS::Serverless::Api
+    Properties:
+      StageName: prod
+      # 关键修改：直接引用并转换根目录的 OpenAPI 文件
+      DefinitionBody:
+        'Fn::Transform':
+          Name: 'AWS::Include'
+          Parameters:
+            Location: ../openapi.template.yaml # 路径指向项目根目录的文件
+
+  # Lambda 函数的定义，注意函数逻辑名称 HelloWorldFunction
+  # 必须与 openapi.template.yaml 中的 ${HelloWorldFunction.Arn} 对应
+  HelloWorldFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: hello-world/
+      Handler: app.lambdaHandler
+      Runtime: nodejs18.x
+      Architectures:
+        - x86_64
+      # 关键：移除这里的 Events 部分，因为 API 触发器已在 openapi.template.yaml 中定义
+
+Outputs:
+  ApiUrl:
+    Description: "API Gateway endpoint URL for Prod stage"
+    Value: !Sub "https://://${MyApiGateway}.execute-api.${AWS::Region}.amazonaws.com/prod"

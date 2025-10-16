@@ -1,0 +1,123 @@
+# openapi.template.yaml
+openapi: 3.0.1
+info:
+  title: My WebApp API
+  version: v1.0
+paths:
+  /items:
+    get:
+      summary: Get a list of items for the authenticated user
+      # 关键点 1: 声明此端点需要 Cognito 认证
+      security:
+        - CognitoAuthorizer: []
+      responses:
+        '200':
+          description: A list of items
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Item'
+      # 关键点 2: AWS API Gateway 与 Lambda 的集成定义
+      x-amazon-apigateway-integration:
+        type: aws_proxy
+        httpMethod: POST # API Gateway 总是用 POST 调用 Lambda 代理集成
+        # 这里的 ${HelloWorldFunction.Arn} 会由 SAM 替换为实际 Lambda 函数的 ARN
+        uri:
+          Fn::Sub: "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${HelloWorldFunction.Arn}/invocations"
+        payloadFormatVersion: '2.0'
+
+  /edge-probe:
+    get:
+      summary: Edge probe endpoint - returns request headers (public endpoint)
+      description: |
+        Public endpoint that returns information about the received HTTP request,
+        including headers and request context. Useful for debugging CDN and edge routing.
+        This endpoint does not require authentication.
+      tags:
+        - Edge Diagnostics
+      responses:
+        '200':
+          description: Request header information
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EdgeProbeResult'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    example: "Failed to process request"
+      # 注意：这个端点没有 security 定义，所以是公开的
+      x-amazon-apigateway-integration:
+        type: aws_proxy
+        httpMethod: POST
+        uri:
+          Fn::Sub: "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${EdgeProbeFunction.Arn}/invocations"
+        payloadFormatVersion: '2.0'
+
+components:
+  schemas:
+    Item:
+      type: object
+      properties:
+        id:
+          type: integer
+          example: 1
+        name:
+          type: string
+          example: "My Awesome Item"
+    
+    EdgeProbeResult:
+      type: object
+      required:
+        - receivedHost
+        - requestContextDomain
+        - method
+        - path
+      properties:
+        receivedHost:
+          type: string
+          description: Host header received by the server
+          example: "api.vfs-tracker.app"
+        requestContextDomain:
+          type: string
+          description: Domain from request context
+          example: "api.vfs-tracker.app"
+        method:
+          type: string
+          description: HTTP method
+          example: "GET"
+        path:
+          type: string
+          description: Request path
+          example: "/dev/edge-probe"
+        headers:
+          type: object
+          description: All received HTTP headers
+          additionalProperties:
+            type: string
+          example:
+            user-agent: "Mozilla/5.0"
+            accept: "application/json"
+        timestamp:
+          type: string
+          format: date-time
+          description: Request timestamp
+          example: "2025-10-16T08:30:00Z"
+  
+  securitySchemes:
+    # 关键点 3: 定义 Cognito Authorizer 的具体信息
+    CognitoAuthorizer:
+      type: openIdConnect
+      # 这里的 ${MyCognitoUserPoolId} 会由 SAM 在部署时传入
+      openIdConnectUrl: !Sub "https://cognito-idp.${AWS::Region}.amazonaws.com/${MyCognitoUserPoolId}"
+      x-amazon-apigateway-authorizer:
+        type: cognito_user_pools
+        identitySource: "$request.header.Authorization"

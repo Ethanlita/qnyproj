@@ -1,0 +1,18 @@
+{
+  "name": "qnyproj",
+  "version": "1.0.0",
+  "description": "Full-stack project with OpenAPI-driven development",
+  "private": true,
+  "scripts": {
+    "generate:openapi": "node scripts/generate-openapi.js",
+    "copy:openapi": "node -e \"require('fs').copyFileSync('openapi.yaml', 'frontend/public/openapi.yaml')\"",
+    "generate:frontend-api": "npm run generate:openapi && npm run copy:openapi && cd frontend && pnpm run generate-api",
+    "dev:frontend": "npm run copy:openapi && cd frontend && pnpm run dev",
+    "build:frontend": "npm run generate:frontend-api && cd frontend && pnpm run build",
+    "deploy:backend": "npm run generate:openapi && cd backend && sam build && sam deploy"
+  },
+  "devDependencies": {
+    "yaml": "^2.3.4"
+  }
+}
+
