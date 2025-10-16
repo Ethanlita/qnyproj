@@ -1,0 +1,187 @@
+name: Deploy Application
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
+
+jobs:
+  # Job 1: Deploy Backend to AWS
+  deploy-backend:
+    name: Deploy Backend to AWS
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Generate OpenAPI spec
+        run: npm run generate:openapi
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Setup AWS SAM
+        uses: aws-actions/setup-sam@v2
+        with:
+          use-installer: true
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      - name: Build SAM application
+        run: |
+          cd backend
+          sam build --use-container
+
+      - name: Deploy to AWS
+        run: |
+          cd backend
+          sam deploy --no-confirm-changeset --no-fail-on-empty-changeset
+        env:
+          AWS_DEFAULT_REGION: ${{ secrets.AWS_REGION }}
+
+  # Job 2: Build and Deploy Frontend to GitHub Pages
+  deploy-frontend:
+    name: Deploy Frontend to GitHub Pages
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install root dependencies
+        run: npm install
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v3
+        with:
+          version: 10
+          run_install: false
+
+      - name: Get pnpm store directory
+        id: pnpm-cache
+        shell: bash
+        run: |
+          echo "STORE_PATH=$(pnpm store path)" >> $GITHUB_OUTPUT
+
+      - name: Setup pnpm cache
+        uses: actions/cache@v4
+        with:
+          path: ${{ steps.pnpm-cache.outputs.STORE_PATH }}
+          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('**/pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pnpm-store-
+
+      - name: Install frontend dependencies
+        run: |
+          cd frontend
+          pnpm install
+
+      - name: Generate OpenAPI and API client
+        run: npm run generate:frontend-api
+
+      - name: Build frontend
+        run: npm run build:frontend
+        env:
+          # 如果需要环境变量，在这里添加
+          NODE_ENV: production
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v4
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: './frontend/dist'
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
+
+  # Job 3: Test (runs on PRs)
+  test:
+    name: Run Tests
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install root dependencies
+        run: npm install
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v3
+        with:
+          version: 10
+
+      - name: Install frontend dependencies
+        run: |
+          cd frontend
+          pnpm install
+
+      - name: Generate OpenAPI and API client
+        run: npm run generate:frontend-api
+
+      - name: TypeScript check
+        run: |
+          cd frontend
+          pnpm exec tsc --noEmit
+
+      - name: Lint check
+        run: |
+          cd frontend
+          pnpm lint
+
+      - name: Build test
+        run: npm run build:frontend
+
+      - name: Backend tests
+        run: |
+          cd backend/hello-world
+          npm install
+          npm test

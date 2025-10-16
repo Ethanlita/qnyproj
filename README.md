@@ -271,14 +271,61 @@ npm run generate:frontend-api
 ### 问题：API 类型不匹配
 **解决方案**: 确保在修改 API 定义后运行了 `npm run generate:frontend-api`
 
+## 🤖 CI/CD
+
+本项目使用 GitHub Actions 实现自动化部署。
+
+### 自动化流程
+
+- **Push to main** → 自动部署后端到 AWS + 前端到 GitHub Pages
+- **Pull Request** → 运行测试和构建验证（TypeScript、Lint、Build）
+
+### 配置步骤
+
+#### 1. 配置 GitHub Secrets
+
+在 GitHub 仓库的 **Settings → Secrets and variables → Actions** 中添加：
+
+| Secret 名称 | 说明 | 示例 |
+|------------|------|------|
+| `AWS_ACCESS_KEY_ID` | AWS 访问密钥 ID | `AKIAIOSFODNN7EXAMPLE` |
+| `AWS_SECRET_ACCESS_KEY` | AWS 秘密访问密钥 | `wJalrXUt...` |
+| `AWS_REGION` | AWS 区域 | `us-east-1` |
+
+#### 2. 启用 GitHub Pages
+
+**Settings → Pages → Source**: 选择 **GitHub Actions**
+
+#### 3. 确保 SAM 配置正确
+
+检查 `backend/samconfig.toml` 包含正确的部署配置：
+
+```toml
+[default.deploy.parameters]
+stack_name = "qnyproj"
+resolve_s3 = true
+region = "us-east-1"
+confirm_changeset = false
+capabilities = "CAPABILITY_IAM"
+```
+
+### 部署后访问
+
+- **Frontend**: `https://<username>.github.io/<repo-name>/`
+- **Backend API**: 在 AWS API Gateway 控制台查看 URL
+
+### 监控部署
+
+- **GitHub Actions**: 仓库 → Actions 标签查看运行状态
+- **AWS CloudFormation**: `aws cloudformation describe-stacks --stack-name qnyproj`
+
 ## 📚 相关文档
 
-- [OPENAPI_WORKFLOW.md](./OPENAPI_WORKFLOW.md) - OpenAPI 工作流详细说明
-- [QUICK_REFERENCE.md](./QUICK_REFERENCE.md) - 快速参考指南
-- [FIXES_APPLIED.md](./FIXES_APPLIED.md) - 问题修复记录
 - [OpenAPI Specification](https://swagger.io/specification/)
 - [AWS API Gateway OpenAPI Extensions](https://docs.aws.amazon.com/apigateway/latest/developerguide/api-gateway-swagger-extensions.html)
 - [AWS SAM Documentation](https://docs.aws.amazon.com/serverless-application-model/)
+- [GitHub Actions Documentation](https://docs.github.com/en/actions)
+- [GitHub Pages Documentation](https://docs.github.com/en/pages)
 
 ## 🤝 贡献指南
 
