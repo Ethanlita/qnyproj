@@ -5,6 +5,8 @@ import { resolve } from 'path'
 
 // https://vite.dev/config/
 export default defineConfig({
+  // GitHub Pages 部署时需要设置 base 为仓库名
+  base: process.env.NODE_ENV === 'production' ? '/qnyproj/' : '/',
   plugins: [
     react(),
     // 插件：复制 openapi.yaml 到 public 目录
