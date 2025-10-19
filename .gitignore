@@ -25,3 +25,12 @@ Thumbs.db
 # Logs
 *.log
 npm-debug.log*
+
+# Temporary documentation (阶段性报告,不提交)
+M*_COMPLETION.md
+QUICK_START_M*.md
+*_SUMMARY.md
+*_WIP.md
+*_NOTES.md
+*_REPORT.md
+M*.md
