@@ -59,7 +59,7 @@ paths:
         type: aws_proxy
         httpMethod: POST
         uri:
-          Fn::Sub: "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${EdgeProbeFunction.Arn}/invocations"
+          Fn::Sub: "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${HelloWorldFunction.Arn}/invocations"
         payloadFormatVersion: '2.0'
 
 components:

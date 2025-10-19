@@ -3,7 +3,7 @@
 version = 0.1
 
 [default.global.parameters]
-stack_name = "backend"
+stack_name = "qnyproj-api"
 
 [default.build.parameters]
 cached = true
@@ -14,8 +14,11 @@ lint = true
 
 [default.deploy.parameters]
 capabilities = "CAPABILITY_IAM"
-confirm_changeset = true
+confirm_changeset = false
 resolve_s3 = true
+s3_prefix = "qnyproj-api"
+region = "us-east-1"
+parameter_overrides = "MyCognitoUserPoolId=us-east-1_Tx45oEoJx"
 
 [default.package.parameters]
 resolve_s3 = true

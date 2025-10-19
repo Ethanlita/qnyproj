@@ -9,10 +9,12 @@
 
 - [环境准备](#环境准备)
 - [首次安装](#首次安装)
+- [AWS 配置](#aws-配置)
 - [Swagger UI 集成](#swagger-ui-集成)
 - [OpenAPI 工作流](#openapi-工作流)
 - [开发流程](#开发流程)
 - [构建和部署](#构建和部署)
+- [CI/CD 自动部署](#cicd)
 - [常用命令](#常用命令)
 - [故障排除](#故障排除)
 
@@ -56,6 +58,48 @@ npm run dev:frontend
 - 📚 **API 文档 (Swagger)** - 完整的交互式 API 文档
 - 🧪 **API 测试** - 实时测试 API 调用
 - 🌐 **CDN 探测** - Edge Probe 诊断工具，返回请求 Header 信息
+
+## ☁️ AWS 配置
+
+在部署到 AWS 之前，需要完成以下配置步骤：
+
+### 快速开始
+
+1. **配置 AWS CLI**
+   ```bash
+   aws configure
+   # 输入 Access Key ID, Secret Access Key, Region
+   ```
+
+2. **创建 Cognito 用户池** (可选，用于认证端点)
+   - 访问 AWS Console → Cognito
+   - 创建用户池并记录 User Pool ID
+   - 更新到 `backend/samconfig.toml`
+
+3. **首次手动部署** (推荐)
+   ```bash
+   cd backend
+   sam build --use-container
+   sam deploy --guided
+   ```
+
+4. **记录 API URL**
+   - 部署成功后会输出 API Gateway URL
+   - 格式: `https://{api-id}.execute-api.{region}.amazonaws.com/dev`
+
+### 详细配置指南
+
+完整的 AWS 配置步骤、架构说明和故障排除，请查看：
+
+👉 **[AWS_SETUP.md](./AWS_SETUP.md)** - AWS 配置完整指南
+
+该文档包含：
+- IAM 用户创建和权限配置
+- Cognito 用户池详细配置
+- 手动部署步骤
+- 部署架构说明
+- API Gateway 端点结构
+- 常见问题排查
 
 ## 📚 Swagger UI 集成
 
@@ -271,53 +315,149 @@ npm run generate:frontend-api
 ### 问题：API 类型不匹配
 **解决方案**: 确保在修改 API 定义后运行了 `npm run generate:frontend-api`
 
-## 🤖 CI/CD
+## 🤖 CI/CD 自动部署
 
-本项目使用 GitHub Actions 实现自动化部署。
+本项目使用 GitHub Actions 实现完全自动化的 CI/CD 流程。
+
+### 部署架构
+
+```
+Push to main → GitHub Actions
+                ├─→ Backend: AWS SAM Deploy (Lambda + API Gateway)
+                └─→ Frontend: GitHub Pages Deploy (gh-pages branch)
+```
+
+### 当前部署状态
+
+**后端 (AWS)**:
+- 📍 **API URL**: `https://ei7gdiuk16.execute-api.us-east-1.amazonaws.com/dev`
+- 🌐 **端点类型**: Edge-Optimized (CloudFront CDN 全球加速)
+- 📦 **Lambda**: `qnyproj-api-HelloWorldFunction-7vF4AmhBaeOA`
+- 🏷️ **Stack**: `qnyproj-api` (us-east-1)
+
+**可用 API 端点**:
+```bash
+# Edge Probe - 返回请求头信息（包含 CloudFront headers）
+GET https://ei7gdiuk16.execute-api.us-east-1.amazonaws.com/dev/edge-probe
+
+# Items - 示例数据列表
+GET https://ei7gdiuk16.execute-api.us-east-1.amazonaws.com/dev/items
+```
+
+**前端 (GitHub Pages)**:
+- 🔗 **URL**: `https://ethanlita.github.io/qnyproj/` (即将部署)
+- 📂 **部署方式**: Deploy from Branch (`gh-pages`)
+- ⚡ **构建工具**: Vite
 
 ### 自动化流程
 
-- **Push to main** → 自动部署后端到 AWS + 前端到 GitHub Pages
-- **Pull Request** → 运行测试和构建验证（TypeScript、Lint、Build）
+**当你 Push 到 main 分支时**:
+1. ✅ **Backend Deploy** - SAM build & deploy 到 AWS
+2. ✅ **Frontend Build** - pnpm build 生产版本
+3. ✅ **GitHub Pages Deploy** - 推送到 gh-pages 分支，自动发布
+
+**当你创建 Pull Request 时**:
+- 🧪 TypeScript 类型检查
+- 🔍 ESLint 代码检查
+- 🏗️ 前端构建测试
+- 🧪 后端单元测试
 
 ### 配置步骤
 
 #### 1. 配置 GitHub Secrets
 
-在 GitHub 仓库的 **Settings → Secrets and variables → Actions** 中添加：
+在 **Settings → Secrets and variables → Actions** 添加：
 
-| Secret 名称 | 说明 | 示例 |
-|------------|------|------|
-| `AWS_ACCESS_KEY_ID` | AWS 访问密钥 ID | `AKIAIOSFODNN7EXAMPLE` |
-| `AWS_SECRET_ACCESS_KEY` | AWS 秘密访问密钥 | `wJalrXUt...` |
+| Secret 名称 | 说明 | 获取方式 |
+|------------|------|---------|
+| `AWS_ACCESS_KEY_ID` | AWS 访问密钥 ID | IAM 用户凭证 |
+| `AWS_SECRET_ACCESS_KEY` | AWS 秘密访问密钥 | IAM 用户凭证 |
 | `AWS_REGION` | AWS 区域 | `us-east-1` |
+
+💡 **提示**: 详细的 IAM 用户创建步骤请查看 [AWS_SETUP.md](./AWS_SETUP.md)
 
 #### 2. 启用 GitHub Pages
 
-**Settings → Pages → Source**: 选择 **GitHub Actions**
+**Settings → Pages**:
+- **Source**: Deploy from a branch
+- **Branch**: `gh-pages` / `root`
+- **保存后等待 GitHub Actions 首次部署**
 
-#### 3. 确保 SAM 配置正确
+#### 3. 验证部署
 
-检查 `backend/samconfig.toml` 包含正确的部署配置：
+**检查 Backend**:
+```bash
+# 测试 Edge Probe 端点
+curl https://ei7gdiuk16.execute-api.us-east-1.amazonaws.com/dev/edge-probe
 
-```toml
-[default.deploy.parameters]
-stack_name = "qnyproj"
-resolve_s3 = true
-region = "us-east-1"
-confirm_changeset = false
-capabilities = "CAPABILITY_IAM"
+# 应该返回包含 CloudFront headers 的 JSON
 ```
 
-### 部署后访问
-
-- **Frontend**: `https://<username>.github.io/<repo-name>/`
-- **Backend API**: 在 AWS API Gateway 控制台查看 URL
+**检查 Frontend**:
+- 访问 `https://<username>.github.io/<repo-name>/`
+- 应该看到完整的应用界面（包括 Swagger UI）
 
 ### 监控部署
 
-- **GitHub Actions**: 仓库 → Actions 标签查看运行状态
-- **AWS CloudFormation**: `aws cloudformation describe-stacks --stack-name qnyproj`
+**GitHub Actions**:
+- 📊 仓库 → **Actions** 标签
+- 查看每次部署的详细日志
+
+**AWS 监控**:
+```bash
+# 查看 CloudFormation Stack 状态
+aws cloudformation describe-stacks --stack-name qnyproj-api
+
+# 查看 Lambda 日志
+aws logs tail /aws/lambda/qnyproj-api-HelloWorldFunction-7vF4AmhBaeOA --since 10m
+```
+
+### Workflow 详情
+
+文件: `.github/workflows/deploy.yml`
+
+**3 个主要 Jobs**:
+
+1. **deploy-backend** (Push to main)
+   - Setup Node.js & Python
+   - Install AWS SAM CLI
+   - Build with Docker container
+   - Deploy to AWS CloudFormation
+
+2. **deploy-frontend** (Push to main)
+   - Setup Node.js & pnpm
+   - Generate API client from OpenAPI
+   - Build production bundle
+   - Push to `gh-pages` branch
+
+3. **test** (Pull Requests)
+   - TypeScript check (`tsc --noEmit`)
+   - Lint (`pnpm lint`)
+   - Build test
+   - Backend unit tests
+
+### 故障排除
+
+**Backend 部署失败**:
+```bash
+# 检查 SAM 配置
+cat backend/samconfig.toml
+
+# 手动部署测试
+cd backend
+sam build --use-container
+sam deploy --debug
+```
+
+**Frontend 部署失败**:
+- 检查 `pnpm-lock.yaml` 是否提交
+- 确认 `npm run build:frontend` 本地可以成功
+- 查看 Actions 日志中的具体错误
+
+**GitHub Pages 404**:
+- 确认 `gh-pages` 分支已创建且包含 `index.html`
+- 检查 Settings → Pages 配置是否正确
+- 等待几分钟让 GitHub 完成部署
 
 ## 📚 相关文档
 
@@ -335,6 +475,3 @@ capabilities = "CAPABILITY_IAM"
 4. 推送到分支 (`git push origin feature/AmazingFeature`)
 5. 开启 Pull Request
 
-## 📄 许可证
-
-[添加你的许可证信息]

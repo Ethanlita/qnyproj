@@ -11,20 +11,134 @@ Parameters:
     Description: The ID of the Cognito User Pool for authorization.
 
 Resources:
-  # API Gateway 现在完全由 openapi.template.yaml 文件定义
+  # API Gateway 现在完全由内联的 OpenAPI 规范定义
   MyApiGateway:
     Type: AWS::Serverless::Api
     Properties:
-      StageName: prod
-      # 关键修改：直接引用并转换根目录的 OpenAPI 文件
+      StageName: dev
+      # 启用边缘优化 - 使用 CloudFront 分发网络加速全球访问
+      EndpointConfiguration:
+        Type: EDGE  # EDGE = 边缘优化, REGIONAL = 区域性, PRIVATE = 私有
+      # 直接内联 OpenAPI 定义
       DefinitionBody:
-        'Fn::Transform':
-          Name: 'AWS::Include'
-          Parameters:
-            Location: ../openapi.template.yaml # 路径指向项目根目录的文件
+        openapi: 3.0.1
+        info:
+          title: My WebApp API
+          version: v1.0
+        paths:
+          /items:
+            get:
+              summary: Get a list of items for the authenticated user
+              security:
+                - CognitoAuthorizer: []
+              responses:
+                '200':
+                  description: A list of items
+                  content:
+                    application/json:
+                      schema:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/Item'
+              x-amazon-apigateway-integration:
+                type: aws_proxy
+                httpMethod: POST
+                uri:
+                  Fn::Sub: "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${HelloWorldFunction.Arn}/invocations"
+          /edge-probe:
+            get:
+              summary: Edge probe endpoint - returns request headers (public endpoint)
+              description: |
+                Public endpoint that returns information about the received HTTP request,
+                including headers and request context. Useful for debugging CDN and edge routing.
+                This endpoint does not require authentication.
+              tags:
+                - Edge Diagnostics
+              responses:
+                '200':
+                  description: Request header information
+                  content:
+                    application/json:
+                      schema:
+                        $ref: '#/components/schemas/EdgeProbeResult'
+                '500':
+                  description: Internal server error
+                  content:
+                    application/json:
+                      schema:
+                        type: object
+                        properties:
+                          error:
+                            type: string
+                            example: "Failed to process request"
+              x-amazon-apigateway-integration:
+                type: aws_proxy
+                httpMethod: POST
+                uri:
+                  Fn::Sub: "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${HelloWorldFunction.Arn}/invocations"
+        components:
+          schemas:
+            Item:
+              type: object
+              properties:
+                id:
+                  type: integer
+                  example: 1
+                name:
+                  type: string
+                  example: "My Awesome Item"
+            EdgeProbeResult:
+              type: object
+              required:
+                - receivedHost
+                - requestContextDomain
+                - method
+                - path
+              properties:
+                receivedHost:
+                  type: string
+                  description: Host header received by the server
+                  example: "api.vfs-tracker.app"
+                requestContextDomain:
+                  type: string
+                  description: Domain from request context
+                  example: "api.vfs-tracker.app"
+                method:
+                  type: string
+                  description: HTTP method
+                  example: "GET"
+                path:
+                  type: string
+                  description: Request path
+                  example: "/dev/edge-probe"
+                headers:
+                  type: object
+                  description: All received HTTP headers
+                  additionalProperties:
+                    type: string
+                  example:
+                    user-agent: "Mozilla/5.0"
+                    accept: "application/json"
+                timestamp:
+                  type: string
+                  format: date-time
+                  description: Request timestamp
+                  example: "2025-10-16T08:30:00Z"
+          securitySchemes:
+            CognitoAuthorizer:
+              type: openIdConnect
+              openIdConnectUrl:
+                Fn::Sub: "https://cognito-idp.${AWS::Region}.amazonaws.com/${MyCognitoUserPoolId}"
+              x-amazon-apigateway-authorizer:
+                type: cognito_user_pools
+                identitySource: "$request.header.Authorization"
+      # 注意：CORS 配置应在 OpenAPI 规范中通过 x-amazon-apigateway-gateway-responses 定义
+      # 启用缓存以提高性能（可选）
+      CacheClusterEnabled: false  # 开发环境关闭，生产环境可以开启
+      # CacheClusterSize: "0.5"  # 如果启用缓存，指定大小（GB）
 
   # Lambda 函数的定义，注意函数逻辑名称 HelloWorldFunction
-  # 必须与 openapi.template.yaml 中的 ${HelloWorldFunction.Arn} 对应
+  # 必须与 OpenAPI 中的 ${HelloWorldFunction.Arn} 对应
   HelloWorldFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -33,9 +147,30 @@ Resources:
       Runtime: nodejs18.x
       Architectures:
         - x86_64
-      # 关键：移除这里的 Events 部分，因为 API 触发器已在 openapi.template.yaml 中定义
+      # 配置 API Gateway 事件触发器，自动创建权限
+      Events:
+        ItemsApi:
+          Type: Api
+          Properties:
+            RestApiId: !Ref MyApiGateway
+            Path: /items
+            Method: GET
+        EdgeProbeApi:
+          Type: Api
+          Properties:
+            RestApiId: !Ref MyApiGateway
+            Path: /edge-probe
+            Method: GET
 
 Outputs:
   ApiUrl:
-    Description: "API Gateway endpoint URL for Prod stage"
-    Value: !Sub "https://://${MyApiGateway}.execute-api.${AWS::Region}.amazonaws.com/prod"
+    Description: "API Gateway endpoint URL for Dev stage"
+    Value: !Sub "https://${MyApiGateway}.execute-api.${AWS::Region}.amazonaws.com/dev"
+    Export:
+      Name: !Sub "${AWS::StackName}-ApiUrl"
+  
+  ApiId:
+    Description: "API Gateway ID"
+    Value: !Ref MyApiGateway
+    Export:
+      Name: !Sub "${AWS::StackName}-ApiId"
