@@ -1,0 +1,21 @@
+{
+  "httpMethod": "POST",
+  "path": "/novels/novel-sample-01/analyze",
+  "pathParameters": {
+    "id": "novel-sample-01"
+  },
+  "headers": {
+    "Content-Type": "application/json",
+    "Authorization": "Bearer mock-jwt-token"
+  },
+  "requestContext": {
+    "authorizer": {
+      "claims": {
+        "sub": "test-user-123",
+        "email": "test@example.com",
+        "cognito:username": "testuser"
+      }
+    }
+  },
+  "body": "{\"options\": {\"mode\": \"full\"}}"
+}

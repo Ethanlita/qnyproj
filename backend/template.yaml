@@ -127,6 +127,52 @@ Resources:
               Bool:
                 'aws:SecureTransport': false
   
+  # Secrets Manager Secret for Qwen API Key
+  QwenApiKeySecret:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Name: !Sub '${AWS::StackName}-qwen-api-key'
+      Description: Qwen API Key for DashScope
+      SecretString: !Sub |
+        {
+          "apiKey": "sk-placeholder-replace-in-console",
+          "endpoint": "https://dashscope.aliyuncs.com/compatible-mode/v1"
+        }
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Application
+          Value: qnyproj-api
+  
+  # SQS Queue for async novel analysis
+  AnalysisQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub '${AWS::StackName}-analysis-queue'
+      VisibilityTimeout: 900  # 15 minutes (Lambda max timeout)
+      MessageRetentionPeriod: 1209600  # 14 days
+      ReceiveMessageWaitTimeSeconds: 20  # Long polling
+      RedrivePolicy:
+        deadLetterTargetArn: !GetAtt AnalysisDeadLetterQueue.Arn
+        maxReceiveCount: 3
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Application
+          Value: qnyproj-api
+  
+  # Dead Letter Queue for failed analysis jobs
+  AnalysisDeadLetterQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub '${AWS::StackName}-analysis-dlq'
+      MessageRetentionPeriod: 1209600  # 14 days
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Application
+          Value: qnyproj-api
+  
   MyApiGateway:
     Type: AWS::Serverless::Api
     Properties:
@@ -1648,16 +1694,24 @@ Resources:
       Runtime: nodejs22.x
       Architectures:
         - x86_64
+      Timeout: 30  # Only needs to create job and send SQS message
+      MemorySize: 512  # Lighter memory requirement
       Environment:
         Variables:
           TABLE_NAME: !Ref ComicDataTable
           ASSETS_BUCKET: !Ref AssetsBucket
           ENVIRONMENT: !Ref Environment
+          ANALYSIS_QUEUE_URL: !Ref AnalysisQueue
       Policies:
         - DynamoDBCrudPolicy:
             TableName: !Ref ComicDataTable
-        - S3CrudPolicy:
+        - S3ReadPolicy:
             BucketName: !Ref AssetsBucket
+        - Statement:
+            - Effect: Allow
+              Action:
+                - sqs:SendMessage
+              Resource: !GetAtt AnalysisQueue.Arn
       Events:
         AnalyzeNovelFunctionEvent1:
           Type: Api
@@ -1666,6 +1720,42 @@ Resources:
               Ref: MyApiGateway
             Path: /novels/{id}/analyze
             Method: POST
+  
+  # Worker Function for async analysis (triggered by SQS)
+  AnalyzeWorkerFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: .
+      Handler: functions/analyze-worker/index.handler
+      Runtime: nodejs22.x
+      Architectures:
+        - x86_64
+      Timeout: 900  # 15 minutes for long-running analysis
+      MemorySize: 2048  # More memory for Qwen API processing
+      Environment:
+        Variables:
+          TABLE_NAME: !Ref ComicDataTable
+          ASSETS_BUCKET: !Ref AssetsBucket
+          ENVIRONMENT: !Ref Environment
+          QWEN_SECRET_ARN: !Ref QwenApiKeySecret
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref ComicDataTable
+        - S3CrudPolicy:
+            BucketName: !Ref AssetsBucket
+        - Statement:
+            - Effect: Allow
+              Action:
+                - secretsmanager:GetSecretValue
+              Resource: !Ref QwenApiKeySecret
+      Events:
+        SQSEvent:
+          Type: SQS
+          Properties:
+            Queue: !GetAtt AnalysisQueue.Arn
+            BatchSize: 1  # Process one analysis at a time
+            MaximumBatchingWindowInSeconds: 0  # No batching delay
+  
   CharactersFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -1801,16 +1891,24 @@ Resources:
       Runtime: nodejs22.x
       Architectures:
         - x86_64
+      Timeout: 300
+      MemorySize: 1024
       Environment:
         Variables:
           TABLE_NAME: !Ref ComicDataTable
           ASSETS_BUCKET: !Ref AssetsBucket
           ENVIRONMENT: !Ref Environment
+          QWEN_SECRET_ARN: !Ref QwenApiKeySecret
       Policies:
         - DynamoDBCrudPolicy:
             TableName: !Ref ComicDataTable
         - S3CrudPolicy:
             BucketName: !Ref AssetsBucket
+        - Statement:
+            - Effect: Allow
+              Action:
+                - secretsmanager:GetSecretValue
+              Resource: !Ref QwenApiKeySecret
       Events:
         GeneratePanelsFunctionEvent1:
           Type: Api

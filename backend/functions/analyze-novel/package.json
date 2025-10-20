@@ -1,9 +1,13 @@
 {
   "name": "analyze-novel-function",
-  "version": "1.0.0",
+  "version": "2.0.0",
+  "description": "Trigger function - creates job and sends to SQS",
   "main": "index.js",
   "dependencies": {
-    "uuid": "^9.0.0"
+    "uuid": "^9.0.0",
+    "@aws-sdk/client-dynamodb": "^3.700.0",
+    "@aws-sdk/lib-dynamodb": "^3.700.0",
+    "@aws-sdk/client-sqs": "^3.700.0"
   }
 }
 

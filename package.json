@@ -14,9 +14,9 @@
     "test:contract:local": "npx dredd --endpoint=http://localhost:3000",
     "test:contract:prod": "npx dredd --endpoint=https://ei7gdiuk16.execute-api.us-east-1.amazonaws.com/dev"
   },
-  "devDependencies": {
-    "dredd": "^15.2.0",
+  "dependencies": {
+    "dredd": "^14.1.0",
     "js-yaml": "^4.1.0",
-    "yaml": "^2.3.4"
+    "yaml": "^2.8.1"
   }
 }

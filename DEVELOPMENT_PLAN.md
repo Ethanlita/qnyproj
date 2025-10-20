@@ -9,12 +9,13 @@
 | 里程碑 | 周期 | 主要目标 | 状态 |
 |--------|------|----------|------|
 | **M1** | Week 1-3 (3 周) | 基建对齐 & 契约基础设施 | ✅ **已完成 (100%)** - 验证通过 2025-10-20 |
-| **M2** | Week 4-7 (4 周) | Qwen 链路 + 契约测试实施 | 🔵 计划中 |
-| **M3** | Week 8-13 (6 周) | 角色配置与预览出图 | 🔵 计划中 |
-| **M4** | Week 14-19 (6 周) | 修改闭环与高清/导出 | 🔵 计划中 |
-| **M5** | Week 20-22 (3 周) | 硬化与优化 | 🔵 计划中 |
+| **M2** | Week 4-5 (2 周) | Qwen 链路 + JSON 严格模式 | 🟢 **进行中 (90%)** - Schema 扩展完成 |
+| **M2-B** | Week 5.5-6.5 (1 周) | 圣经持久化与跨章节连续性 | 🔵 **计划中 (Schema 已完成)** |
+| **M3** | Week 7-12 (6 周) | 角色配置与预览出图 | 🔵 计划中 |
+| **M4** | Week 13-18 (6 周) | 修改闭环与高清/导出 | 🔵 计划中 |
+| **M5** | Week 19-21 (3 周) | 硬化与优化 | 🔵 计划中 |
 
-**总计**: 22 周 (~5.5 个月)
+**总计**: 21 周 (~5.25 个月)
 
 **✅ M1 验证报告**: 详见 `M1_VERIFICATION_REPORT.md` (2025-10-20)
 
@@ -272,12 +273,7 @@
 - ⏸️ Dredd 配置文件与 Hooks (延后)
 - ⏸️ CI 集成合约测试 (延后)
 - ⏸️ 合约测试通过 (延后)
-
 - [ ] 安装 Dredd:
-  ```bash
-  npm install -g dredd
-  ```
-
 - [ ] 创建 `dredd.yml` 配置文件:
   ```yaml
   reporter:
@@ -449,30 +445,6 @@
    - ✅ NPM 脚本 (test:contract, test:contract:local, test:contract:prod)
    - ⏭️ **实际契约测试执行延后至 M2** (需要禁用 Cognito 或实现真实认证)
    - 📄 契约测试状态文档: `CONTRACT_TESTING_STATUS.md`
-
-### 关键技术突破
-
-- **CodeUri 修复**: 将 CodeUri 从 `functions/<name>/` 改为 `.` 解决 lib/ 模块访问问题
-- **Handler 路径调整**: 使用 `functions/<name>/index.handler` 确保正确的函数入口
-- **生产验证**: 所有测试的 Lambda 函数在 AWS 环境正确运行,无运行时错误
-- **环境配置**: 开发和生产环境 API 端点配置完整
-- **Node.js 升级**: 12 个 Lambda 函数从 nodejs18.x 升级至 nodejs22.x
-- **DynamoDB + S3**: ComicDataTable (Streams + 2 GSI) 和 AssetsBucket (CORS + Lifecycle) 已创建
-- **契约测试架构**: Dredd 基础设施搭建完成，路径参数验证问题解决
-
-### 部署统计
-
-- **代码规模**: openapi.template.yaml (1,447 行), backend/template.yaml (1,980 行)
-- **API 端点**: 18 个路径, 23 个集成
-- **Lambda 函数**: 12 个 (11 新增 + 1 已有), Runtime: nodejs22.x
-- **AWS 资源**: 
-  - 12 Lambda 函数 + 12 IAM 角色 + 23 Lambda 权限
-  - 1 DynamoDB 表 (ComicDataTable, PAY_PER_REQUEST, Streams + 2 GSI)
-  - 1 S3 Bucket (AssetsBucket, CORS + Lifecycle policies)
-  - 7 CloudFormation Outputs
-  - 总计: 55+ 资源
-- **测试覆盖**: 16/16 单元测试通过
-- **契约测试**: 基础设施就绪 (实际执行延后至 M2)
 
 ### 技术债务与延后项
 
@@ -1090,6 +1062,343 @@ module.exports = QwenAdapter;
 - [x] 集成测试通过
 - [x] CloudWatch Logs 无异常错误
 - [ ] **OpenAPI 契约与实际响应一致** (通过 Dredd 报告验证) ⭐ 从 M1 延后
+
+---
+
+## M2-B: 圣经持久化与跨章节连续性 (Week 5.5-6.5)
+
+### 目标
+
+- 实现角色圣经和场景圣经的持久化存储
+- 支持跨章节复用现有圣经，确保视觉连续性
+- Qwen 能够在现有圣经基础上补全新角色/场景
+
+### 任务清单
+
+#### 2B.1 Bible Schema 定义
+
+**预计时间**: 0.5 天
+
+- [x] 创建 `backend/schemas/bible.json`:
+  - [x] 定义 Bible 数据结构 (novelId, version, characters, scenes, metadata)
+  - [x] 包含创建时间、更新时间、版本号等元信息
+  - [x] 支持 S3 或 DynamoDB 存储位置引用
+
+- [x] 创建 `backend/schemas/storyboard-request.json`:
+  - [x] 定义请求输入 schema (text, chapterNumber, existingCharacters, existingScenes)
+  - [x] 支持传递现有角色圣经和场景圣经
+
+**产出**:
+- ✅ `backend/schemas/bible.json` (~200 行)
+- ✅ `backend/schemas/storyboard-request.json` (~150 行)
+
+---
+
+#### 2B.2 QwenAdapter 更新 - 圣经支持
+
+**预计时间**: 1 天
+
+- [x] 更新 `generateStoryboard()` 方法签名:
+  - [x] 添加 `existingCharacters` 参数
+  - [x] 添加 `existingScenes` 参数
+  - [x] 添加 `chapterNumber` 参数
+
+- [x] 更新 System Prompt:
+  - [x] 添加跨章节连续性规则说明
+  - [x] 明确要求 Qwen 复用现有圣经并保持属性不变
+  - [x] 要求在 panel.background.sceneId 中优先使用现有场景 ID
+
+- [x] 更新 `callQwen()` 方法:
+  - [x] 在 user message 中附带现有圣经 JSON
+  - [x] 使用结构化格式（【现有角色圣经】、【现有场景圣经】、【新章节文本】）
+
+**产出**:
+- ✅ 更新的 `backend/lib/qwen-adapter.js`
+- ✅ 支持圣经传递的集成测试
+
+---
+
+#### 2B.3 BibleManager 实现
+
+**预计时间**: 2 天
+
+- [ ] 创建 `backend/lib/bible-manager.js`:
+
+```javascript
+class BibleManager {
+  constructor(dynamoClient, s3Client, tableName, bucketName) {
+    this.dynamoClient = dynamoClient;
+    this.s3Client = s3Client;
+    this.tableName = tableName;
+    this.bucketName = bucketName;
+  }
+  
+  /**
+   * Get existing bible for a novel
+   * @param {string} novelId - Novel ID
+   * @returns {Promise<{characters: Array, scenes: Array, version: number}>}
+   */
+  async getBible(novelId) {
+    // 1. Try DynamoDB first (metadata + small bibles)
+    // 2. If too large, fetch from S3 (storageLocation)
+    // 3. Return empty arrays if not found
+  }
+  
+  /**
+   * Save or update bible
+   * @param {string} novelId - Novel ID
+   * @param {Array} characters - Character bible
+   * @param {Array} scenes - Scene bible
+   * @param {number} chapterNumber - Current chapter
+   * @returns {Promise<{version: number}>}
+   */
+  async saveBible(novelId, characters, scenes, chapterNumber) {
+    // 1. Merge with existing bible (deduplicate by name/id)
+    // 2. Increment version number
+    // 3. If size < 400KB, store in DynamoDB
+    // 4. If size ≥ 400KB, store in S3 and save reference in DynamoDB
+    // 5. Update metadata (updatedAt, lastChapter, totalCharacters, totalScenes)
+  }
+  
+  /**
+   * Merge new characters with existing, preserve original attributes
+   */
+  mergeCharacters(existing, newChars) {
+    // Use Map to deduplicate by character name
+    // Keep original appearance/personality for existing characters
+    // Add firstAppearance for new characters
+  }
+  
+  /**
+   * Merge new scenes with existing, preserve original attributes
+   */
+  mergeScenes(existing, newScenes) {
+    // Use Map to deduplicate by scene id
+    // Keep original visualCharacteristics for existing scenes
+    // Add firstAppearance for new scenes
+  }
+}
+```
+
+**产出**:
+- ✅ `backend/lib/bible-manager.js` (~300 行)
+- ✅ 支持 DynamoDB + S3 混合存储
+- ✅ 智能合并逻辑（去重 + 属性保留）
+
+---
+
+#### 2B.4 DynamoDB Table 设计
+
+**预计时间**: 0.5 天
+
+- [ ] 在 `backend/template.yaml` 添加 Bibles 表:
+
+```yaml
+BiblesTable:
+  Type: AWS::DynamoDB::Table
+  Properties:
+    TableName: !Sub '${AWS::StackName}-bibles'
+    BillingMode: PAY_PER_REQUEST
+    AttributeDefinitions:
+      - AttributeName: novelId
+        AttributeType: S
+      - AttributeName: version
+        AttributeType: N
+    KeySchema:
+      - AttributeName: novelId
+        KeyType: HASH
+      - AttributeName: version
+        KeyType: RANGE
+    StreamSpecification:
+      StreamViewType: NEW_AND_OLD_IMAGES
+    Tags:
+      - Key: Environment
+        Value: !Ref Environment
+
+# 表结构示例:
+# {
+#   "novelId": "novel-123",
+#   "version": 5,
+#   "characters": [...],  // 如果 < 400KB
+#   "scenes": [...],      // 如果 < 400KB
+#   "metadata": {
+#     "createdAt": "2025-01-01T00:00:00Z",
+#     "updatedAt": "2025-01-05T10:30:00Z",
+#     "lastChapter": 5,
+#     "totalCharacters": 12,
+#     "totalScenes": 8,
+#     "storageLocation": "s3://bucket/bibles/novel-123-v5.json"  // 如果 ≥ 400KB
+#   }
+# }
+```
+
+**产出**:
+- ✅ BiblesTable CloudFormation 定义
+- ✅ GSI 用于按 novelId 查询最新版本
+
+---
+
+#### 2B.5 AnalyzeNovelFunction 集成
+
+**预计时间**: 1.5 天
+
+- [ ] 更新 `backend/functions/analyze-novel/index.js`:
+
+```javascript
+const BibleManager = require('../../lib/bible-manager');
+
+exports.handler = async (event) => {
+  const { novelId, text, chapterNumber } = JSON.parse(event.body);
+  
+  // 1. Get existing bible
+  const bibleManager = new BibleManager(dynamoClient, s3Client, 'BiblesTable', 'MyBucket');
+  const existingBible = await bibleManager.getBible(novelId);
+  
+  console.log(`Found ${existingBible.characters.length} existing characters, ${existingBible.scenes.length} existing scenes`);
+  
+  // 2. Generate storyboard with existing bible
+  const storyboard = await qwenAdapter.generateStoryboard({
+    text,
+    jsonSchema: storyboardSchema,
+    strictMode: true,
+    existingCharacters: existingBible.characters,
+    existingScenes: existingBible.scenes,
+    chapterNumber
+  });
+  
+  // 3. Save updated bible
+  const newVersion = await bibleManager.saveBible(
+    novelId,
+    storyboard.characters,
+    storyboard.scenes,
+    chapterNumber
+  );
+  
+  console.log(`Updated bible to version ${newVersion.version}`);
+  
+  // 4. Save storyboard to DynamoDB...
+};
+```
+
+**产出**:
+- ✅ 集成 BibleManager
+- ✅ 自动获取和保存圣经
+- ✅ CloudWatch Logs 显示圣经统计信息
+
+---
+
+#### 2B.6 集成测试 - 多章节连续性
+
+**预计时间**: 1 天
+
+- [ ] 创建 `backend/lib/bible-manager.test.js`:
+  - [ ] 测试 getBible (空圣经、DynamoDB、S3)
+  - [ ] 测试 saveBible (小圣经、大圣经)
+  - [ ] 测试 mergeCharacters (去重、属性保留)
+  - [ ] 测试 mergeScenes (去重、属性保留)
+
+- [ ] 创建集成测试 `backend/tests/bible-continuity.integration.test.js`:
+  - [ ] 第一章：生成初始圣经（2 角色，1 场景）
+  - [ ] 第二章：复用圣经 + 添加新角色（总共 3 角色，2 场景）
+  - [ ] 验证：第一章角色的 appearance 未被修改
+  - [ ] 验证：第一章场景的 visualCharacteristics 未被修改
+  - [ ] 验证：panel.background.sceneId 正确引用现有场景
+
+- [ ] 准备测试数据:
+  - [ ] `test-data/novels/chapter-01.txt` (引入角色 A、B 和场景 X)
+  - [ ] `test-data/novels/chapter-02.txt` (引入角色 C 和场景 Y，重复使用角色 A 和场景 X)
+
+**产出**:
+- ✅ 单元测试覆盖率 ≥80%
+- ✅ 集成测试通过（多章节场景）
+- ✅ 测试报告显示角色/场景连续性
+
+---
+
+#### 2B.7 API 端点扩展
+
+**预计时间**: 1 天
+
+- [ ] 在 `openapi.template.yaml` 添加圣经管理端点:
+
+```yaml
+/novels/{novelId}/bible:
+  get:
+    summary: Get current bible for a novel
+    operationId: getBible
+    parameters:
+      - name: novelId
+        in: path
+        required: true
+        schema:
+          type: string
+      - name: version
+        in: query
+        required: false
+        schema:
+          type: integer
+          description: Specific version number (default: latest)
+    responses:
+      '200':
+        description: Bible retrieved
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Bible'
+      '404':
+        description: Bible not found
+
+/novels/{novelId}/bible/history:
+  get:
+    summary: Get bible version history
+    operationId: getBibleHistory
+    responses:
+      '200':
+        description: Bible versions
+        content:
+          application/json:
+            schema:
+              type: array
+              items:
+                type: object
+                properties:
+                  version: {type: integer}
+                  lastChapter: {type: integer}
+                  updatedAt: {type: string, format: date-time}
+```
+
+- [ ] 创建 Lambda 函数 `backend/functions/bible/index.js`:
+  - [ ] 实现 getBible handler
+  - [ ] 实现 getBibleHistory handler
+
+**产出**:
+- ✅ 新增 2 个 API 端点
+- ✅ 前端生成的 TypeScript 客户端更新
+- ✅ Swagger UI 显示圣经管理 API
+
+---
+
+### 验收标准 (M2-B)
+
+**功能验收**:
+- [ ] 第一章生成圣经后，第二章能正确复用
+- [ ] 现有角色的 appearance 在新章节中保持不变
+- [ ] 现有场景的 visualCharacteristics 在新章节中保持不变
+- [ ] panel.background.sceneId 优先引用现有场景
+- [ ] 新角色/新场景正确添加到圣经中
+- [ ] 大圣经 (>400KB) 自动存储到 S3
+
+**性能验收**:
+- [ ] getBible ≤100ms (DynamoDB)
+- [ ] getBible ≤500ms (S3)
+- [ ] saveBible ≤200ms (小圣经)
+- [ ] saveBible ≤1000ms (大圣经含 S3 上传)
+
+**质量验收**:
+- [ ] BibleManager 单元测试覆盖率 ≥85%
+- [ ] 多章节集成测试全部通过
+- [ ] Qwen 能够理解并遵循圣经连续性规则（通过日志验证）
+- [ ] API 文档正确描述圣经管理端点
 
 ---
 

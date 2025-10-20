@@ -1,0 +1,29 @@
+{
+  "Records": [
+    {
+      "messageId": "test-message-123",
+      "receiptHandle": "test-receipt-handle",
+      "body": "{\"jobId\": \"test-job-001\", \"novelId\": \"test-novel-001\", \"userId\": \"test-user-001\", \"timestamp\": 1729382400000}",
+      "attributes": {
+        "ApproximateReceiveCount": "1",
+        "SentTimestamp": "1729382400000",
+        "SenderId": "AIDAIT2UOQQY3AUEKVGXU",
+        "ApproximateFirstReceiveTimestamp": "1729382400000"
+      },
+      "messageAttributes": {
+        "jobId": {
+          "stringValue": "test-job-001",
+          "dataType": "String"
+        },
+        "novelId": {
+          "stringValue": "test-novel-001",
+          "dataType": "String"
+        }
+      },
+      "md5OfBody": "test-md5",
+      "eventSource": "aws:sqs",
+      "eventSourceARN": "arn:aws:sqs:us-east-1:123456789012:qnyproj-api-analysis-queue",
+      "awsRegion": "us-east-1"
+    }
+  ]
+}

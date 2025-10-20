@@ -1,0 +1,233 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Bible Schema",
+  "description": "Schema for storing character and scene bibles for cross-chapter continuity",
+  "type": "object",
+  "required": ["novelId", "version", "characters", "scenes", "metadata"],
+  "properties": {
+    "novelId": {
+      "type": "string",
+      "pattern": "^[a-zA-Z0-9-]+$",
+      "description": "Novel ID (matches Novels table PK)"
+    },
+    "version": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "Bible version number (increments with each chapter)"
+    },
+    "characters": {
+      "type": "array",
+      "description": "Character bible - cumulative list of all characters",
+      "items": {
+        "type": "object",
+        "required": ["name", "role"],
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Character name (unique within novel)"
+          },
+          "role": {
+            "type": "string",
+            "enum": ["protagonist", "antagonist", "supporting", "background"],
+            "description": "Character's role in the story"
+          },
+          "appearance": {
+            "type": "object",
+            "properties": {
+              "gender": {"type": "string"},
+              "age": {"type": "integer", "minimum": 0},
+              "hairColor": {"type": "string"},
+              "hairStyle": {"type": "string"},
+              "eyeColor": {"type": "string"},
+              "height": {"type": "string"},
+              "build": {"type": "string"},
+              "clothing": {
+                "type": "array",
+                "items": {"type": "string"}
+              },
+              "distinctiveFeatures": {
+                "type": "array",
+                "items": {"type": "string"}
+              }
+            }
+          },
+          "personality": {
+            "type": "array",
+            "items": {"type": "string"},
+            "description": "Personality traits"
+          },
+          "firstAppearance": {
+            "type": "object",
+            "required": ["chapter"],
+            "properties": {
+              "chapter": {"type": "integer", "minimum": 1},
+              "page": {"type": "integer", "minimum": 1},
+              "panelIndex": {"type": "integer", "minimum": 0}
+            }
+          }
+        }
+      }
+    },
+    "scenes": {
+      "type": "array",
+      "description": "Scene bible - cumulative list of all recurring locations",
+      "items": {
+        "type": "object",
+        "required": ["id", "name", "type", "description"],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[a-z0-9_]+$",
+            "description": "Unique scene identifier"
+          },
+          "name": {
+            "type": "string",
+            "description": "Human-readable scene name"
+          },
+          "type": {
+            "type": "string",
+            "enum": ["indoor", "outdoor", "indoor-outdoor", "natural", "urban", "rural", "fantasy", "abstract"]
+          },
+          "description": {
+            "type": "string"
+          },
+          "visualCharacteristics": {
+            "type": "object",
+            "properties": {
+              "architecture": {"type": "string"},
+              "keyLandmarks": {
+                "type": "array",
+                "items": {"type": "string"}
+              },
+              "colorScheme": {"type": "string"},
+              "lighting": {
+                "type": "object",
+                "properties": {
+                  "naturalLight": {
+                    "type": "string",
+                    "enum": ["abundant", "moderate", "limited", "none"]
+                  },
+                  "artificialLight": {
+                    "type": "string",
+                    "enum": ["none", "minimal", "moderate", "heavy"]
+                  },
+                  "lightSources": {
+                    "type": "array",
+                    "items": {"type": "string"}
+                  }
+                }
+              },
+              "atmosphere": {"type": "string"},
+              "soundscape": {
+                "type": "array",
+                "items": {"type": "string"}
+              },
+              "textures": {
+                "type": "array",
+                "items": {"type": "string"}
+              }
+            }
+          },
+          "spatialLayout": {
+            "type": "object",
+            "properties": {
+              "size": {
+                "type": "string",
+                "enum": ["cramped", "small", "medium", "large", "vast"]
+              },
+              "layout": {"type": "string"},
+              "keyAreas": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "name": {"type": "string"},
+                    "position": {"type": "string"}
+                  }
+                }
+              }
+            }
+          },
+          "timeVariations": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "timeOfDay": {
+                  "type": "string",
+                  "enum": ["dawn", "morning", "noon", "afternoon", "dusk", "evening", "night", "midnight"]
+                },
+                "description": {"type": "string"}
+              }
+            }
+          },
+          "weatherVariations": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "weather": {
+                  "type": "string",
+                  "enum": ["clear", "cloudy", "rainy", "snowy", "foggy", "stormy", "windy"]
+                },
+                "description": {"type": "string"}
+              }
+            }
+          },
+          "narrativeRole": {
+            "type": "string",
+            "enum": ["primary-setting", "secondary-setting", "transitional", "symbolic", "flashback-location", "dream-sequence"]
+          },
+          "firstAppearance": {
+            "type": "object",
+            "required": ["chapter"],
+            "properties": {
+              "chapter": {"type": "integer", "minimum": 1},
+              "page": {"type": "integer", "minimum": 1},
+              "panelIndex": {"type": "integer", "minimum": 0}
+            }
+          },
+          "referenceImages": {
+            "type": "array",
+            "items": {"type": "string"}
+          }
+        }
+      }
+    },
+    "metadata": {
+      "type": "object",
+      "required": ["createdAt", "updatedAt", "lastChapter"],
+      "properties": {
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Bible creation timestamp (ISO 8601)"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Last update timestamp (ISO 8601)"
+        },
+        "lastChapter": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Last chapter number that updated this bible"
+        },
+        "totalCharacters": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Total number of characters in bible"
+        },
+        "totalScenes": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Total number of scenes in bible"
+        },
+        "storageLocation": {
+          "type": "string",
+          "description": "S3 URL or DynamoDB reference for full bible data"
+        }
+      }
+    }
+  }
+}

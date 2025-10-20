@@ -1,0 +1,140 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "CR-DSL Schema",
+  "description": "Change Request Domain Specific Language for comic panel modifications",
+  "type": "object",
+  "required": ["scope", "type", "ops"],
+  "properties": {
+    "scope": {
+      "type": "string",
+      "enum": ["global", "character", "panel", "page"],
+      "description": "Scope of the change request"
+    },
+    "targetId": {
+      "type": "string",
+      "description": "Target ID (panel ID, character ID, or page number) - required when scope is not 'global'"
+    },
+    "type": {
+      "type": "string",
+      "enum": ["art", "dialogue", "layout", "style"],
+      "description": "Type of modification"
+    },
+    "ops": {
+      "type": "array",
+      "minItems": 1,
+      "description": "Array of operations to perform",
+      "items": {
+        "type": "object",
+        "required": ["action"],
+        "properties": {
+          "action": {
+            "type": "string",
+            "enum": [
+              "inpaint",
+              "outpaint",
+              "bg_swap",
+              "repose",
+              "regen_panel",
+              "rewrite_dialogue",
+              "reorder",
+              "resize",
+              "add_effect"
+            ],
+            "description": "Action to perform"
+          },
+          "params": {
+            "type": "object",
+            "description": "Parameters for the action (structure varies by action type)",
+            "properties": {
+              "mask": {
+                "type": "object",
+                "description": "Mask region for inpaint/outpaint actions",
+                "properties": {
+                  "x": { "type": "number" },
+                  "y": { "type": "number" },
+                  "width": { "type": "number" },
+                  "height": { "type": "number" }
+                }
+              },
+              "prompt": {
+                "type": "string",
+                "description": "Text prompt for generation actions"
+              },
+              "backgroundPrompt": {
+                "type": "string",
+                "description": "Prompt for background replacement"
+              },
+              "pose": {
+                "type": "string",
+                "description": "New pose description for repose action"
+              },
+              "newText": {
+                "type": "string",
+                "description": "New dialogue text for rewrite_dialogue action"
+              },
+              "dialogueId": {
+                "type": "string",
+                "description": "ID of the dialogue bubble to modify"
+              },
+              "speaker": {
+                "type": "string",
+                "description": "Speaker name for dialogue modifications"
+              },
+              "fromIndex": {
+                "type": "integer",
+                "description": "Source index for reorder action"
+              },
+              "toIndex": {
+                "type": "integer",
+                "description": "Destination index for reorder action"
+              },
+              "width": {
+                "type": "integer",
+                "description": "New width for resize action"
+              },
+              "height": {
+                "type": "integer",
+                "description": "New height for resize action"
+              },
+              "effect": {
+                "type": "string",
+                "enum": ["speed-lines", "impact", "glow", "blur", "tone"],
+                "description": "Visual effect to add"
+              },
+              "intensity": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1,
+                "description": "Effect intensity (0-1)"
+              }
+            }
+          }
+        }
+      }
+    },
+    "reason": {
+      "type": "string",
+      "description": "Human-readable explanation of why this change is being made"
+    },
+    "priority": {
+      "type": "string",
+      "enum": ["low", "medium", "high", "urgent"],
+      "default": "medium",
+      "description": "Priority of this change request"
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "scope": {
+            "enum": ["character", "panel", "page"]
+          }
+        }
+      },
+      "then": {
+        "required": ["targetId"]
+      }
+    }
+  ]
+}
