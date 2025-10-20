@@ -1,0 +1,19 @@
+{
+  "httpMethod": "POST",
+  "path": "/novels/test-123/analyze",
+  "pathParameters": {
+    "id": "test-123"
+  },
+  "headers": {
+    "Content-Type": "application/json"
+  },
+  "requestContext": {
+    "authorizer": {
+      "claims": {
+        "sub": "test-user-123",
+        "email": "test@example.com"
+      }
+    }
+  },
+  "body": null
+}

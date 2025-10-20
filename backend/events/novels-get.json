@@ -1,0 +1,16 @@
+{
+  "httpMethod": "GET",
+  "path": "/novels",
+  "headers": {
+    "Content-Type": "application/json"
+  },
+  "requestContext": {
+    "authorizer": {
+      "claims": {
+        "sub": "test-user-123",
+        "email": "test@example.com"
+      }
+    }
+  },
+  "body": null
+}

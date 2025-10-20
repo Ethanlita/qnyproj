@@ -1,0 +1,20 @@
+reporter:
+  - cli
+  - html
+  - markdown
+output:
+  - dredd-report.html
+  - dredd-report.md
+loglevel: warning
+path: []
+blueprint: openapi.yaml
+endpoint: http://localhost:3000
+hookfiles: ./tests/dredd/hooks.js
+
+# 只测试核心 Mock 端点 (MVP 阶段)
+only:
+  - "/novels > 创建新作品 > 201 > application/json"
+  - "/novels/{id} > 获取作品详情 > 200 > application/json"
+  - "/novels/{id}/analyze > 分析小说文本生成分镜 > 202 > application/json"
+  - "/jobs/{id} > 查询任务进度 > 200 > application/json"
+  - "/storyboards/{id} > 获取分镜详情 > 200 > application/json"

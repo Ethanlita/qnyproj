@@ -1,0 +1,35 @@
+# SAM build ignore list
+# Exclude these from Lambda deployment packages
+
+# Build artifacts
+.aws-sam/
+
+# Node modules (will be bundled separately)
+node_modules/
+
+# Test files
+tests/
+*.test.js
+**/__tests__/
+
+# Documentation
+README.md
+*.md
+
+# Git
+.git/
+.gitignore
+
+# IDE
+.vscode/
+.idea/
+
+# Config files
+samconfig.toml
+iam-policy-sam-deploy.json
+
+# Events (test events)
+events/
+
+# hello-world function (separate function, not part of new functions)
+hello-world/

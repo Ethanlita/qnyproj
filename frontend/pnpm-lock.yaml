@@ -63,6 +63,9 @@ importers:
       eslint-plugin-react-refresh:
         specifier: ^0.4.22
         version: 0.4.24(eslint@9.37.0)
+      form-data:
+        specifier: ^4.0.4
+        version: 4.0.4
       globals:
         specifier: ^16.4.0
         version: 16.4.0

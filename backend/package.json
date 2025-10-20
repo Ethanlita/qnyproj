@@ -1,0 +1,41 @@
+{
+  "name": "qnyproj-backend",
+  "version": "1.0.0",
+  "description": "Backend functions for Novel-to-Comics project",
+  "scripts": {
+    "test": "jest --coverage",
+    "test:watch": "jest --watch",
+    "test:lib": "jest lib/",
+    "test:functions": "jest functions/"
+  },
+  "jest": {
+    "testEnvironment": "node",
+    "coverageDirectory": "coverage",
+    "collectCoverageFrom": [
+      "lib/**/*.js",
+      "functions/**/*.js",
+      "!functions/**/node_modules/**",
+      "!**/test/**",
+      "!**/*.test.js"
+    ],
+    "testMatch": [
+      "**/__tests__/**/*.js",
+      "**/?(*.)+(spec|test).js"
+    ],
+    "coverageThreshold": {
+      "global": {
+        "branches": 60,
+        "functions": 60,
+        "lines": 60,
+        "statements": 60
+      }
+    }
+  },
+  "devDependencies": {
+    "dredd": "^14.1.0",
+    "jest": "^29.7.0"
+  },
+  "dependencies": {
+    "uuid": "^9.0.0"
+  }
+}

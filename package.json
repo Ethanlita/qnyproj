@@ -9,10 +9,14 @@
     "generate:frontend-api": "npm run generate:openapi && npm run copy:openapi && cd frontend && pnpm run generate-api",
     "dev:frontend": "npm run copy:openapi && cd frontend && pnpm run dev",
     "build:frontend": "npm run generate:frontend-api && cd frontend && pnpm run build",
-    "deploy:backend": "npm run generate:openapi && cd backend && sam build && sam deploy"
+    "deploy:backend": "npm run generate:openapi && cd backend && sam build && sam deploy",
+    "test:contract": "npx dredd",
+    "test:contract:local": "npx dredd --endpoint=http://localhost:3000",
+    "test:contract:prod": "npx dredd --endpoint=https://ei7gdiuk16.execute-api.us-east-1.amazonaws.com/dev"
   },
   "devDependencies": {
+    "dredd": "^15.2.0",
+    "js-yaml": "^4.1.0",
     "yaml": "^2.3.4"
   }
 }
-

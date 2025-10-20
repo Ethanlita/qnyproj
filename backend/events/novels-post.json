@@ -1,0 +1,16 @@
+{
+  "httpMethod": "POST",
+  "path": "/novels",
+  "headers": {
+    "Content-Type": "application/json"
+  },
+  "requestContext": {
+    "authorizer": {
+      "claims": {
+        "sub": "test-user-456",
+        "email": "author@example.com"
+      }
+    }
+  },
+  "body": "{\"title\": \"The Great Adventure\", \"text\": \"Once upon a time in a land far away...\", \"metadata\": {\"genre\": \"Fantasy\", \"tags\": [\"adventure\", \"magic\"]}}"
+}

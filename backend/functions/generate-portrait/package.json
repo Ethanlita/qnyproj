@@ -1,0 +1,11 @@
+{
+  "name": "generate-portrait-function",
+  "version": "1.0.0",
+  "main": "index.js",
+  "dependencies": {
+    "uuid": "^9.0.0"
+  }
+}
+
+
+

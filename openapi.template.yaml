@@ -1,13 +1,16 @@
 # openapi.template.yaml
+# This is the source OpenAPI spec with CloudFormation extensions
+# Run `npm run generate:openapi` to generate openapi.yaml
+
 openapi: 3.0.1
 info:
-  title: My WebApp API
+  title: Novel-to-Comics API
+  description: AI-powered novel to comic generation platform
   version: v1.0
 paths:
   /items:
     get:
       summary: Get a list of items for the authenticated user
-      # 关键点 1: 声明此端点需要 Cognito 认证
       security:
         - CognitoAuthorizer: []
       responses:
@@ -19,15 +22,12 @@ paths:
                 type: array
                 items:
                   $ref: '#/components/schemas/Item'
-      # 关键点 2: AWS API Gateway 与 Lambda 的集成定义
       x-amazon-apigateway-integration:
         type: aws_proxy
-        httpMethod: POST # API Gateway 总是用 POST 调用 Lambda 代理集成
-        # 这里的 ${HelloWorldFunction.Arn} 会由 SAM 替换为实际 Lambda 函数的 ARN
+        httpMethod: POST
         uri:
-          Fn::Sub: "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${HelloWorldFunction.Arn}/invocations"
+          Fn::Sub: arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${HelloWorldFunction.Arn}/invocations
         payloadFormatVersion: '2.0'
-
   /edge-probe:
     get:
       summary: Edge probe endpoint - returns request headers (public endpoint)
@@ -53,17 +53,1045 @@ paths:
                 properties:
                   error:
                     type: string
-                    example: "Failed to process request"
-      # 注意：这个端点没有 security 定义，所以是公开的
+                    example: Failed to process request
       x-amazon-apigateway-integration:
         type: aws_proxy
         httpMethod: POST
         uri:
-          Fn::Sub: "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${HelloWorldFunction.Arn}/invocations"
+          Fn::Sub: arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${HelloWorldFunction.Arn}/invocations
         payloadFormatVersion: '2.0'
+  /novels:
+    post:
+      summary: 创建新作品
+      tags:
+        - Novels
+      security:
+        - CognitoAuthorizer: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - title
+              properties:
+                title:
+                  type: string
+                  minLength: 1
+                  maxLength: 200
+                  description: 作品标题
+                  example: 我的奇幻冒险
+                text:
+                  type: string
+                  description: 小说文本内容 (可选,也可以后续上传到S3)
+                  example: 从前有一个勇士...
+                metadata:
+                  type: object
+                  properties:
+                    genre:
+                      type: string
+                      example: 奇幻
+                    tags:
+                      type: array
+                      items:
+                        type: string
+                      example:
+                        - 冒险
+                        - 魔法
+      responses:
+        '201':
+          description: 作品创建成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Novel'
+        '400':
+          description: 请求参数错误
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+      x-amazon-apigateway-integration:
+        type: aws_proxy
+        httpMethod: POST
+        uri:
+          Fn::Sub: arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${NovelsFunction.Arn}/invocations
+        payloadFormatVersion: '2.0'
+  /novels/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        example: "test-123"
 
+    get:
+      summary: 获取作品详情
+      tags:
+        - Novels
+      security:
+        - CognitoAuthorizer: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: 作品ID
+      responses:
+        '200':
+          description: 作品详情
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Novel'
+        '404':
+          description: 作品不存在
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+      x-amazon-apigateway-integration:
+        type: aws_proxy
+        httpMethod: POST
+        uri:
+          Fn::Sub: arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${NovelsFunction.Arn}/invocations
+        payloadFormatVersion: '2.0'
+    delete:
+      summary: 删除作品
+      tags:
+        - Novels
+      security:
+        - CognitoAuthorizer: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '204':
+          description: 删除成功
+        '404':
+          description: 作品不存在
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+      x-amazon-apigateway-integration:
+        type: aws_proxy
+        httpMethod: POST
+        uri:
+          Fn::Sub: arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${NovelsFunction.Arn}/invocations
+        payloadFormatVersion: '2.0'
+  /novels/{id}/analyze:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        example: "test-123"
+
+    post:
+      summary: 分析小说文本生成分镜
+      description: 使用 Qwen AI 分析文本，提取角色圣经和分镜大纲
+      tags:
+        - Novels
+      security:
+        - CognitoAuthorizer: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                options:
+                  type: object
+                  properties:
+                    panelsPerPage:
+                      type: integer
+                      default: 6
+                      description: 每页面板数
+                    style:
+                      type: string
+                      default: manga
+                      description: 漫画风格
+      responses:
+        '202':
+          description: 分析任务已启动
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  jobId:
+                    type: string
+                    format: uuid
+                  status:
+                    type: string
+                    enum:
+                      - pending
+                  message:
+                    type: string
+                    example: Analysis started. Use GET /jobs/{jobId} to check progress.
+        '404':
+          description: 作品不存在
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+      x-amazon-apigateway-integration:
+        type: aws_proxy
+        httpMethod: POST
+        uri:
+          Fn::Sub: arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${AnalyzeNovelFunction.Arn}/invocations
+        payloadFormatVersion: '2.0'
+  /characters/{charId}:
+    parameters:
+      - name: charId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        example: "test-char-123"
+
+    get:
+      summary: 获取角色详情 (含所有配置)
+      tags:
+        - Characters
+      security:
+        - CognitoAuthorizer: []
+      parameters:
+        - name: charId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: 角色详情
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Character'
+        '404':
+          description: 角色不存在
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+      x-amazon-apigateway-integration:
+        type: aws_proxy
+        httpMethod: POST
+        uri:
+          Fn::Sub: arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${CharactersFunction.Arn}/invocations
+        payloadFormatVersion: '2.0'
+    put:
+      summary: 更新角色基础信息
+      tags:
+        - Characters
+      security:
+        - CognitoAuthorizer: []
+      parameters:
+        - name: charId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                role:
+                  type: string
+                  enum:
+                    - protagonist
+                    - antagonist
+                    - supporting
+                    - background
+                baseInfo:
+                  type: object
+                  properties:
+                    gender:
+                      type: string
+                      enum:
+                        - male
+                        - female
+                        - other
+                    age:
+                      type: integer
+                    personality:
+                      type: array
+                      items:
+                        type: string
+      responses:
+        '200':
+          description: 更新成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Character'
+      x-amazon-apigateway-integration:
+        type: aws_proxy
+        httpMethod: POST
+        uri:
+          Fn::Sub: arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${CharactersFunction.Arn}/invocations
+        payloadFormatVersion: '2.0'
+  /characters/{charId}/configurations:
+    parameters:
+      - name: charId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        example: "test-char-123"
+
+    get:
+      summary: 列举角色的所有配置
+      tags:
+        - Characters
+      security:
+        - CognitoAuthorizer: []
+      parameters:
+        - name: charId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: 配置列表
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/CharacterConfiguration'
+      x-amazon-apigateway-integration:
+        type: aws_proxy
+        httpMethod: POST
+        uri:
+          Fn::Sub: arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${CharactersFunction.Arn}/invocations
+        payloadFormatVersion: '2.0'
+    post:
+      summary: 创建新配置
+      description: 为角色创建新的配置 (如"战斗模式"、"日常装扮")
+      tags:
+        - Characters
+      security:
+        - CognitoAuthorizer: []
+      parameters:
+        - name: charId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - name
+                - description
+              properties:
+                name:
+                  type: string
+                  minLength: 1
+                  maxLength: 100
+                  example: 战斗模式
+                description:
+                  type: string
+                  minLength: 1
+                  maxLength: 2000
+                  example: 艾莉娅穿着银白色铠甲，手持魔法剑
+                tags:
+                  type: array
+                  items:
+                    type: string
+                  example:
+                    - 战斗
+                    - 铠甲
+                appearance:
+                  type: object
+                  description: 该配置的外貌描述
+                isDefault:
+                  type: boolean
+                  default: false
+      responses:
+        '201':
+          description: 配置创建成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CharacterConfiguration'
+      x-amazon-apigateway-integration:
+        type: aws_proxy
+        httpMethod: POST
+        uri:
+          Fn::Sub: arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${CharactersFunction.Arn}/invocations
+        payloadFormatVersion: '2.0'
+  /characters/{charId}/configurations/{configId}:
+    parameters:
+      - name: charId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        example: "test-char-123"
+      - name: configId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        example: "test-config-123"
+
+    get:
+      summary: 获取配置详情
+      tags:
+        - Characters
+      security:
+        - CognitoAuthorizer: []
+      parameters:
+        - name: charId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: configId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: 配置详情
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CharacterConfiguration'
+      x-amazon-apigateway-integration:
+        type: aws_proxy
+        httpMethod: POST
+        uri:
+          Fn::Sub: arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${CharactersFunction.Arn}/invocations
+        payloadFormatVersion: '2.0'
+    put:
+      summary: 更新配置
+      tags:
+        - Characters
+      security:
+        - CognitoAuthorizer: []
+      parameters:
+        - name: charId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: configId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                description:
+                  type: string
+                tags:
+                  type: array
+                  items:
+                    type: string
+                appearance:
+                  type: object
+      responses:
+        '200':
+          description: 更新成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CharacterConfiguration'
+      x-amazon-apigateway-integration:
+        type: aws_proxy
+        httpMethod: POST
+        uri:
+          Fn::Sub: arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${CharactersFunction.Arn}/invocations
+        payloadFormatVersion: '2.0'
+    delete:
+      summary: 删除配置
+      tags:
+        - Characters
+      security:
+        - CognitoAuthorizer: []
+      parameters:
+        - name: charId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: configId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '204':
+          description: 删除成功
+      x-amazon-apigateway-integration:
+        type: aws_proxy
+        httpMethod: POST
+        uri:
+          Fn::Sub: arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${CharactersFunction.Arn}/invocations
+        payloadFormatVersion: '2.0'
+  /characters/{charId}/configurations/{configId}/refs:
+    parameters:
+      - name: charId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        example: "test-char-123"
+      - name: configId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        example: "test-config-123"
+
+    post:
+      summary: 上传配置的参考图
+      description: 为指定配置上传多张参考图
+      tags:
+        - Characters
+      security:
+        - CognitoAuthorizer: []
+      parameters:
+        - name: charId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: configId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                images:
+                  type: array
+                  items:
+                    type: string
+                    format: binary
+                  description: 参考图文件 (最多10张)
+      responses:
+        '200':
+          description: 上传成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  uploaded:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        s3Key:
+                          type: string
+                        url:
+                          type: string
+                          format: uri
+                        caption:
+                          type: string
+      x-amazon-apigateway-integration:
+        type: aws_proxy
+        httpMethod: POST
+        uri:
+          Fn::Sub: arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${CharactersFunction.Arn}/invocations
+        payloadFormatVersion: '2.0'
+  /characters/{charId}/configurations/{configId}/portraits:
+    parameters:
+      - name: charId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        example: "test-char-123"
+      - name: configId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        example: "test-config-123"
+
+    post:
+      summary: 生成配置的标准像
+      description: 为指定配置生成多视角标准像 (使用 Imagen 3)
+      tags:
+        - Characters
+      security:
+        - CognitoAuthorizer: []
+      parameters:
+        - name: charId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: configId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '202':
+          description: 生成任务已启动
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  jobId:
+                    type: string
+                    format: uuid
+                  message:
+                    type: string
+      x-amazon-apigateway-integration:
+        type: aws_proxy
+        httpMethod: POST
+        uri:
+          Fn::Sub: arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${GeneratePortraitFunction.Arn}/invocations
+        payloadFormatVersion: '2.0'
+  /storyboards/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        example: "test-123"
+
+    get:
+      summary: 获取分镜详情
+      tags:
+        - Storyboards
+      security:
+        - CognitoAuthorizer: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: 分镜详情
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Storyboard'
+      x-amazon-apigateway-integration:
+        type: aws_proxy
+        httpMethod: POST
+        uri:
+          Fn::Sub: arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${StoryboardsFunction.Arn}/invocations
+        payloadFormatVersion: '2.0'
+  /storyboards/{id}/generate:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        example: "test-123"
+
+    post:
+      summary: 批量生成面板图像
+      description: 使用 Imagen 3 批量生成所有面板的图像
+      tags:
+        - Storyboards
+      security:
+        - CognitoAuthorizer: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: mode
+          in: query
+          required: false
+          schema:
+            type: string
+            enum:
+              - preview
+              - hd
+            default: preview
+          description: '生成模式 (preview: 512x288, hd: 1920x1080)'
+      responses:
+        '202':
+          description: 生成任务已启动
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  jobId:
+                    type: string
+                    format: uuid
+                  status:
+                    type: string
+                  totalPanels:
+                    type: integer
+                  message:
+                    type: string
+      x-amazon-apigateway-integration:
+        type: aws_proxy
+        httpMethod: POST
+        uri:
+          Fn::Sub: arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${GeneratePanelsFunction.Arn}/invocations
+        payloadFormatVersion: '2.0'
+  /panels/{panelId}:
+    parameters:
+      - name: panelId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        example: "test-panel-123"
+
+    get:
+      summary: 获取面板详情
+      tags:
+        - Panels
+      security:
+        - CognitoAuthorizer: []
+      parameters:
+        - name: panelId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: 面板详情
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Panel'
+      x-amazon-apigateway-integration:
+        type: aws_proxy
+        httpMethod: POST
+        uri:
+          Fn::Sub: arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${PanelsFunction.Arn}/invocations
+        payloadFormatVersion: '2.0'
+  /panels/{panelId}/edit:
+    parameters:
+      - name: panelId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        example: "test-panel-123"
+
+    post:
+      summary: 编辑面板
+      description: 使用 Imagen 3 编辑 API (inpaint/outpaint/bg_swap)
+      tags:
+        - Panels
+      security:
+        - CognitoAuthorizer: []
+      parameters:
+        - name: panelId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - editMode
+                - instruction
+              properties:
+                editMode:
+                  type: string
+                  enum:
+                    - inpaint
+                    - outpaint
+                    - bg_swap
+                instruction:
+                  type: string
+                  description: 编辑指令
+                  example: 把角色的表情改为微笑
+                mask:
+                  type: string
+                  description: 遮罩图 (Base64 或 S3 URL)
+      responses:
+        '202':
+          description: 编辑任务已启动
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  jobId:
+                    type: string
+                    format: uuid
+      x-amazon-apigateway-integration:
+        type: aws_proxy
+        httpMethod: POST
+        uri:
+          Fn::Sub: arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${EditPanelFunction.Arn}/invocations
+        payloadFormatVersion: '2.0'
+  /change-requests:
+    post:
+      summary: 提交修改请求
+      description: 用户用自然语言描述修改诉求，系统解析为 CR-DSL 并执行
+      tags:
+        - Change Requests
+      security:
+        - CognitoAuthorizer: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - novelId
+                - naturalLanguage
+              properties:
+                novelId:
+                  type: string
+                  format: uuid
+                naturalLanguage:
+                  type: string
+                  minLength: 1
+                  maxLength: 1000
+                  example: 把第 3 页第 2 个面板中艾莉娅的表情改为微笑
+      responses:
+        '202':
+          description: CR 已提交并正在处理
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  crId:
+                    type: string
+                    format: uuid
+                  jobId:
+                    type: string
+                    format: uuid
+                  dsl:
+                    $ref: '#/components/schemas/CRDSL'
+                  message:
+                    type: string
+      x-amazon-apigateway-integration:
+        type: aws_proxy
+        httpMethod: POST
+        uri:
+          Fn::Sub: arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${ChangeRequestFunction.Arn}/invocations
+        payloadFormatVersion: '2.0'
+  /jobs/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        example: "test-123"
+
+    get:
+      summary: 查询任务进度
+      tags:
+        - Jobs
+      security:
+        - CognitoAuthorizer: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: 任务详情
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Job'
+      x-amazon-apigateway-integration:
+        type: aws_proxy
+        httpMethod: POST
+        uri:
+          Fn::Sub: arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${JobsFunction.Arn}/invocations
+        payloadFormatVersion: '2.0'
+  /exports:
+    post:
+      summary: 创建导出任务
+      description: 导出漫画为 PDF/Webtoon/资源包
+      tags:
+        - Exports
+      security:
+        - CognitoAuthorizer: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - novelId
+                - format
+              properties:
+                novelId:
+                  type: string
+                  format: uuid
+                format:
+                  type: string
+                  enum:
+                    - pdf
+                    - webtoon
+                    - resources
+                  description: 导出格式
+      responses:
+        '202':
+          description: 导出任务已启动
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  exportId:
+                    type: string
+                    format: uuid
+                  jobId:
+                    type: string
+                    format: uuid
+      x-amazon-apigateway-integration:
+        type: aws_proxy
+        httpMethod: POST
+        uri:
+          Fn::Sub: arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${ExportFunction.Arn}/invocations
+        payloadFormatVersion: '2.0'
+  /exports/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        example: "test-123"
+
+    get:
+      summary: 获取导出结果
+      description: 返回导出文件的预签名 URL
+      tags:
+        - Exports
+      security:
+        - CognitoAuthorizer: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: 导出详情
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Export'
+      x-amazon-apigateway-integration:
+        type: aws_proxy
+        httpMethod: POST
+        uri:
+          Fn::Sub: arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${ExportFunction.Arn}/invocations
+        payloadFormatVersion: '2.0'
 components:
   schemas:
+    Error:
+      type: object
+      required:
+        - error
+      properties:
+        error:
+          type: string
+          description: 错误消息
+          example: Resource not found
+        details:
+          type: object
+          description: 详细错误信息
+          additionalProperties: true
     Item:
       type: object
       properties:
@@ -72,8 +1100,7 @@ components:
           example: 1
         name:
           type: string
-          example: "My Awesome Item"
-    
+          example: My Awesome Item
     EdgeProbeResult:
       type: object
       required:
@@ -85,39 +1112,473 @@ components:
         receivedHost:
           type: string
           description: Host header received by the server
-          example: "api.vfs-tracker.app"
+          example: api.vfs-tracker.app
         requestContextDomain:
           type: string
           description: Domain from request context
-          example: "api.vfs-tracker.app"
+          example: api.vfs-tracker.app
         method:
           type: string
           description: HTTP method
-          example: "GET"
+          example: GET
         path:
           type: string
           description: Request path
-          example: "/dev/edge-probe"
+          example: /dev/edge-probe
         headers:
           type: object
           description: All received HTTP headers
           additionalProperties:
             type: string
           example:
-            user-agent: "Mozilla/5.0"
-            accept: "application/json"
+            user-agent: Mozilla/5.0
+            accept: application/json
         timestamp:
           type: string
           format: date-time
           description: Request timestamp
-          example: "2025-10-16T08:30:00Z"
-  
+          example: 2025-10-16T08:30:00.000Z
+    Novel:
+      type: object
+      required:
+        - id
+        - title
+        - status
+        - userId
+        - createdAt
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: 作品唯一标识
+        title:
+          type: string
+          description: 作品标题
+          example: 我的奇幻冒险
+        originalText:
+          type: string
+          description: 原文内容
+        originalTextS3:
+          type: string
+          description: 原文 S3 Key
+        status:
+          type: string
+          enum:
+            - created
+            - analyzing
+            - analyzed
+            - generating
+            - completed
+            - error
+          description: 作品状态
+        storyboardId:
+          type: string
+          format: uuid
+          description: 关联的分镜ID
+        userId:
+          type: string
+          description: Cognito 用户 ID
+        metadata:
+          type: object
+          properties:
+            genre:
+              type: string
+            tags:
+              type: array
+              items:
+                type: string
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    Character:
+      type: object
+      required:
+        - id
+        - name
+        - novelId
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+          description: 角色名称
+          example: 艾莉娅
+        role:
+          type: string
+          enum:
+            - protagonist
+            - antagonist
+            - supporting
+            - background
+        novelId:
+          type: string
+          format: uuid
+        baseInfo:
+          type: object
+          properties:
+            gender:
+              type: string
+              enum:
+                - male
+                - female
+                - other
+            age:
+              type: integer
+            personality:
+              type: array
+              items:
+                type: string
+        configurations:
+          type: array
+          items:
+            $ref: '#/components/schemas/CharacterConfiguration'
+          description: 角色的所有配置
+        defaultConfigId:
+          type: string
+          format: uuid
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    CharacterConfiguration:
+      type: object
+      required:
+        - id
+        - charId
+        - name
+      properties:
+        id:
+          type: string
+          format: uuid
+        charId:
+          type: string
+          format: uuid
+        name:
+          type: string
+          description: 配置名称
+          example: 战斗模式
+        description:
+          type: string
+          description: 配置的详细描述
+          example: 艾莉娅穿着银白色铠甲，手持魔法剑
+        tags:
+          type: array
+          items:
+            type: string
+          example:
+            - 战斗
+            - 铠甲
+        appearance:
+          type: object
+          description: 外貌描述
+          properties:
+            hairStyle:
+              type: string
+            hairColor:
+              type: string
+            eyeColor:
+              type: string
+            clothing:
+              type: array
+              items:
+                type: string
+            accessories:
+              type: array
+              items:
+                type: string
+        referenceImages:
+          type: array
+          items:
+            type: object
+            properties:
+              url:
+                type: string
+                format: uri
+              caption:
+                type: string
+              uploadedAt:
+                type: string
+                format: date-time
+        generatedPortraits:
+          type: array
+          items:
+            type: object
+            properties:
+              view:
+                type: string
+                enum:
+                  - front
+                  - side
+                  - three-quarter
+                  - 45-degree
+                  - full-body
+              url:
+                type: string
+                format: uri
+              generatedAt:
+                type: string
+                format: date-time
+        isDefault:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    Storyboard:
+      type: object
+      required:
+        - id
+        - novelId
+        - version
+      properties:
+        id:
+          type: string
+          format: uuid
+        novelId:
+          type: string
+          format: uuid
+        version:
+          type: integer
+          minimum: 1
+        totalPages:
+          type: integer
+        panelCount:
+          type: integer
+        panels:
+          type: array
+          items:
+            $ref: '#/components/schemas/Panel'
+        createdAt:
+          type: string
+          format: date-time
+    Panel:
+      type: object
+      required:
+        - id
+        - page
+        - index
+      properties:
+        id:
+          type: string
+          format: uuid
+        storyboardId:
+          type: string
+          format: uuid
+        page:
+          type: integer
+          minimum: 1
+          description: 页码
+        index:
+          type: integer
+          minimum: 0
+          description: 页内序号
+        content:
+          type: object
+          properties:
+            scene:
+              type: string
+              description: 场景描述
+            shotType:
+              type: string
+              enum:
+                - close-up
+                - medium
+                - wide
+                - extreme-wide
+            characters:
+              type: array
+              items:
+                type: object
+                properties:
+                  charId:
+                    type: string
+                    format: uuid
+                  configId:
+                    type: string
+                    format: uuid
+                    description: 使用的配置ID
+                  name:
+                    type: string
+                  pose:
+                    type: string
+                  expression:
+                    type: string
+                    enum:
+                      - neutral
+                      - happy
+                      - sad
+                      - angry
+                      - surprised
+                      - determined
+                      - fearful
+            dialogue:
+              type: array
+              items:
+                type: object
+                properties:
+                  speaker:
+                    type: string
+                  text:
+                    type: string
+                  bubbleType:
+                    type: string
+                    enum:
+                      - speech
+                      - thought
+                      - narration
+                      - scream
+        visualPrompt:
+          type: string
+          description: Imagen prompt
+        images:
+          type: object
+          properties:
+            preview:
+              type: string
+              format: uri
+            hd:
+              type: string
+              format: uri
+    Job:
+      type: object
+      required:
+        - id
+        - type
+        - status
+      properties:
+        id:
+          type: string
+          format: uuid
+        type:
+          type: string
+          enum:
+            - analyze
+            - generate_preview
+            - generate_hd
+            - edit
+            - export
+        status:
+          type: string
+          enum:
+            - pending
+            - in_progress
+            - completed
+            - failed
+        progress:
+          type: object
+          properties:
+            total:
+              type: integer
+            completed:
+              type: integer
+            failed:
+              type: integer
+            percentage:
+              type: number
+              format: float
+        result:
+          type: object
+          description: 任务结果 (内容依赖于 type)
+          additionalProperties: true
+        error:
+          type: string
+          description: 错误信息
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    CRDSL:
+      type: object
+      required:
+        - scope
+        - type
+        - ops
+      description: Change Request Domain-Specific Language
+      properties:
+        scope:
+          type: string
+          enum:
+            - global
+            - character
+            - panel
+            - page
+        targetId:
+          type: string
+        type:
+          type: string
+          enum:
+            - art
+            - dialogue
+            - layout
+            - style
+        ops:
+          type: array
+          items:
+            type: object
+            required:
+              - action
+            properties:
+              action:
+                type: string
+                enum:
+                  - inpaint
+                  - outpaint
+                  - bg_swap
+                  - repose
+                  - regen_panel
+                  - rewrite_dialogue
+                  - reorder
+              params:
+                type: object
+                additionalProperties: true
+    Export:
+      type: object
+      required:
+        - id
+        - novelId
+        - format
+        - status
+      properties:
+        id:
+          type: string
+          format: uuid
+        novelId:
+          type: string
+          format: uuid
+        format:
+          type: string
+          enum:
+            - pdf
+            - webtoon
+            - resources
+        status:
+          type: string
+          enum:
+            - pending
+            - processing
+            - completed
+            - failed
+        fileUrl:
+          type: string
+          format: uri
+          description: 预签名 URL
+        fileSize:
+          type: integer
+        createdAt:
+          type: string
+          format: date-time
   securitySchemes:
-    # 关键点 3: 定义 Cognito Authorizer 的具体信息
     CognitoAuthorizer:
       type: openIdConnect
-      # 这里的 ${MyCognitoUserPoolId} 会由 SAM 在部署时传入
-      openIdConnectUrl: !Sub "https://cognito-idp.${AWS::Region}.amazonaws.com/${MyCognitoUserPoolId}"
-      x-amazon-apigateway-authorizer:
-        type: cognito_user_pools
-        identitySource: "$request.header.Authorization"
+      openIdConnectUrl:
+        Fn::Sub: https://cognito-idp.${AWS::Region}.amazonaws.com/${MyCognitoUserPoolId}
