@@ -411,7 +411,7 @@ const s3 = new S3Client();
 const dynamodb = new DynamoDBClient();
 
 const PORTRAIT_VIEWS = ['front', 'side', 'three-quarter', '45-degree'];
-const NEGATIVE_PROMPT = 'blurry, low quality, multiple people, NSFW, deformed';
+const NEGATIVE_PROMPT = 'blurry, low quality, multiple people, deformed';  // 注: NSFW检测已移除
 
 exports.handler = async (event) => {
   const { charId, configId } = event.pathParameters;
@@ -1279,7 +1279,7 @@ class ImagenAdapter {
     return {
       buffer: Buffer.from(image.bytesBase64Encoded, 'base64'),
       mimeType: image.mimeType || 'image/png',
-      safetyAttributes: image.safetyAttributes
+      safetyAttributes: image.safetyAttributes  // 注: 返回但不强制检查,仅供记录
     };
   }
   
@@ -1327,7 +1327,7 @@ class ImagenAdapter {
   }
 }
 
-const DEFAULT_NEGATIVE_PROMPT = 'blurry, low quality, NSFW, deformed, multiple people, watermark, text';
+const DEFAULT_NEGATIVE_PROMPT = 'blurry, low quality, deformed, multiple people, watermark, text';  // 注: NSFW检测已移除
 
 module.exports = ImagenAdapter;
 ```

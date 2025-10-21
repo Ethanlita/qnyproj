@@ -1758,7 +1758,7 @@ const request = {
   instances: [
     {
       prompt: "manga style, close-up, character standing",
-      negativePrompt: "blurry, low quality, NSFW",
+      negativePrompt: "blurry, low quality, deformed",  // 注: NSFW检测已移除
       aspectRatio: "16:9",
       width: 1920,
       height: 1080
@@ -1783,7 +1783,7 @@ const image = response.predictions[0];
 {
   bytesBase64Encoded: "iVBORw0KGgoAAAANSUhEUgAA...",
   mimeType: "image/png",
-  safetyAttributes: {
+  safetyAttributes: {  // 注: 返回但不强制检查,仅供记录
     scores: {
       nsfw: 0.05,
       violence: 0.02
@@ -1824,8 +1824,7 @@ const [response] = await client.predict(request);
 |------|------|------|
 | `bytesBase64Encoded` | String | 图像的 Base64 编码 |
 | `mimeType` | String | MIME 类型 (通常是 `image/png`) |
-| `safetyAttributes.scores.nsfw` | Float | NSFW 分数 (0-1,越高越危险) |
-| `safetyAttributes.scores.violence` | Float | 暴力分数 |
+| `safetyAttributes.scores.*` | Float | 安全属性分数 (0-1) - 返回但不强制检查,仅供记录 |
 
 #### 错误处理
 
