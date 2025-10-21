@@ -457,7 +457,7 @@ Resources:
                 uri:
                   Fn::Sub: arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${AnalyzeNovelFunction.Arn}/invocations
                 payloadFormatVersion: '2.0'
-          /novels/{novelId}/bible:
+          /novels/{id}/bible:
             get:
               summary: 获取作品圣经
               description: 返回指定作品最新版本的角色与场景圣经
@@ -466,7 +466,7 @@ Resources:
               security:
                 - CognitoAuthorizer: []
               parameters:
-                - name: novelId
+                - name: id
                   in: path
                   required: true
                   schema:
@@ -503,7 +503,7 @@ Resources:
                 uri:
                   Fn::Sub: arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${BibleFunction.Arn}/invocations
                 payloadFormatVersion: '2.0'
-          /novels/{novelId}/bible/history:
+          /novels/{id}/bible/history:
             get:
               summary: 获取圣经版本历史
               description: 返回指定作品的圣经版本列表
@@ -512,7 +512,7 @@ Resources:
               security:
                 - CognitoAuthorizer: []
               parameters:
-                - name: novelId
+                - name: id
                   in: path
                   required: true
                   schema:
@@ -2137,14 +2137,14 @@ Resources:
           Properties:
             RestApiId:
               Ref: MyApiGateway
-            Path: /novels/{novelId}/bible
+            Path: /novels/{id}/bible
             Method: GET
         BibleGetHistory:
           Type: Api
           Properties:
             RestApiId:
               Ref: MyApiGateway
-            Path: /novels/{novelId}/bible/history
+            Path: /novels/{id}/bible/history
             Method: GET
   
   CharactersFunction:
