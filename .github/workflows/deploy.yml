@@ -79,9 +79,6 @@ jobs:
           echo "✓ Checking lib/schema-to-prompt.js..."
           test -f lib/schema-to-prompt.js && echo "  ✅ Found" || echo "  ❌ Missing"
           
-          echo "✓ Checking lib/get-secrets.js..."
-          test -f lib/get-secrets.js && echo "  ✅ Found" || echo "  ❌ Missing"
-          
           echo "✓ Checking schemas/storyboard.json..."
           test -f schemas/storyboard.json && echo "  ✅ Found" || echo "  ❌ Missing"
           
@@ -150,7 +147,7 @@ jobs:
             
             # Verify critical files
             echo "🔍 Verifying critical files in build:"
-            for file in "lib/qwen-adapter.js" "lib/schema-to-prompt.js" "lib/get-secrets.js" "schemas/storyboard.json"; do
+            for file in "lib/qwen-adapter.js" "lib/schema-to-prompt.js" "schemas/storyboard.json"; do
               if [ -f "$BUILD_DIR/$file" ]; then
                 SIZE=$(stat -f%z "$BUILD_DIR/$file" 2>/dev/null || stat -c%s "$BUILD_DIR/$file" 2>/dev/null)
                 echo "  ✅ $file (${SIZE} bytes)"

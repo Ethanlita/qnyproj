@@ -9,7 +9,7 @@
  * - Error handling
  */
 
-const { describe, it, beforeEach, afterEach } = require('node:test');
+const { describe, it, beforeEach, afterEach } = require('@jest/globals');
 const assert = require('node:assert');
 const QwenAdapter = require('./qwen-adapter');
 
@@ -64,6 +64,12 @@ describe('QwenAdapter', () => {
   let mockClient;
 
   beforeEach(() => {
+    jest.restoreAllMocks();
+    jest.spyOn(console, 'log').mockImplementation(() => {});
+    jest.spyOn(console, 'info').mockImplementation(() => {});
+    jest.spyOn(console, 'warn').mockImplementation(() => {});
+    jest.spyOn(console, 'error').mockImplementation(() => {});
+    
     mockClient = new MockOpenAIClient();
     // Inject mock client
     adapter = new QwenAdapter({
@@ -86,6 +92,7 @@ describe('QwenAdapter', () => {
     if (mockClient) {
       mockClient.reset();
     }
+    jest.restoreAllMocks();
   });
 
   describe('splitTextIntelligently', () => {
@@ -160,6 +167,7 @@ describe('QwenAdapter', () => {
       assert.deepStrictEqual(result, {
         panels: [],
         characters: [],
+        scenes: [],
         totalPages: 0
       });
     });
