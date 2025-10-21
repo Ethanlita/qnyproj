@@ -127,23 +127,25 @@ Resources:
               Bool:
                 'aws:SecureTransport': false
   
-  # Secrets Manager Secret for Qwen API Key
+  # Secrets Manager Secret for environment variables
+  # NOTE: This secret is managed externally via scripts/sync-secrets.js
+  # The secret must exist before deployment or be created during first deploy
   QwenApiKeySecret:
     Type: AWS::SecretsManager::Secret
+    DeletionPolicy: Retain  # Keep secret when stack is deleted
+    UpdateReplacePolicy: Retain  # Keep secret when resource is replaced
     Properties:
       Name: !Sub '${AWS::StackName}-qwen-api-key'
-      Description: Qwen API Key for DashScope
-      SecretString: !Sub |
-        {
-          "apiKey": "sk-placeholder-replace-in-console",
-          "endpoint": "https://dashscope.aliyuncs.com/compatible-mode/v1"
-        }
+      Description: Environment variables from .env file (managed by sync-secrets.js)
+      SecretString: '{"QWEN_API_KEY":"placeholder","QWEN_ENDPOINT":"https://dashscope-intl.aliyuncs.com/compatible-mode/v1","QWEN_MODEL":"qwen-plus"}'
       Tags:
         - Key: Environment
           Value: !Ref Environment
         - Key: Application
           Value: qnyproj-api
-  
+        - Key: ManagedBy
+          Value: sync-secrets-script
+   
   # SQS Queue for async novel analysis
   AnalysisQueue:
     Type: AWS::SQS::Queue

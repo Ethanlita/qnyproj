@@ -9,7 +9,9 @@
     "generate:frontend-api": "npm run generate:openapi && npm run copy:openapi && cd frontend && pnpm run generate-api",
     "dev:frontend": "npm run copy:openapi && cd frontend && pnpm run dev",
     "build:frontend": "npm run generate:frontend-api && cd frontend && pnpm run build",
-    "deploy:backend": "npm run generate:openapi && cd backend && sam build && sam deploy",
+    "deploy:backend": "cd backend && ./scripts/deploy-with-secrets.sh",
+    "sync:secrets": "cd backend && node scripts/sync-secrets.js",
+    "test:secrets": "cd backend && node scripts/test-secrets.js",
     "test:contract": "npx dredd",
     "test:contract:local": "npx dredd --endpoint=http://localhost:3000",
     "test:contract:prod": "npx dredd --endpoint=https://ei7gdiuk16.execute-api.us-east-1.amazonaws.com/dev"

@@ -63,10 +63,34 @@ jobs:
           cd backend
           sam build --use-container
 
+      - name: Sync secrets to AWS Secrets Manager
+        run: |
+          cd backend
+          # Create temporary .env from GitHub Secrets
+          cat > .env << EOF
+          QWEN_API_KEY=${{ secrets.QWEN_API_KEY }}
+          DASHSCOPE_API_KEY=${{ secrets.QWEN_API_KEY }}
+          QWEN_ENDPOINT=${{ secrets.QWEN_ENDPOINT || 'https://dashscope-intl.aliyuncs.com/compatible-mode/v1' }}
+          QWEN_MODEL=${{ secrets.QWEN_MODEL || 'qwen-plus' }}
+          AWS_REGION=${{ secrets.AWS_REGION }}
+          EOF
+          
+          # Sync to Secrets Manager
+          node scripts/sync-secrets.js --stack-name qnyproj-api
+          
+          # Clean up
+          rm .env
+        env:
+          AWS_DEFAULT_REGION: ${{ secrets.AWS_REGION }}
+
       - name: Deploy to AWS
         run: |
           cd backend
-          sam deploy --no-confirm-changeset --no-fail-on-empty-changeset
+          sam deploy \
+            --no-confirm-changeset \
+            --no-fail-on-empty-changeset \
+            --parameter-overrides \
+              "MyCognitoUserPoolId=us-east-1_Tx45oEoJx"
         env:
           AWS_DEFAULT_REGION: ${{ secrets.AWS_REGION }}
 

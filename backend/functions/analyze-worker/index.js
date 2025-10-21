@@ -37,6 +37,7 @@ const validateStoryboard = ajv.compile(storyboardSchema);
 // Cache for Qwen credentials
 let qwenAdapterCache = null;
 
+
 /**
  * Get Qwen API credentials from Secrets Manager
  */
@@ -57,9 +58,20 @@ async function getQwenAdapter() {
   
   const secret = JSON.parse(response.SecretString);
   
+  // Support both naming conventions: apiKey/endpoint (old) and QWEN_API_KEY/QWEN_ENDPOINT (new)
+  const apiKey = secret.apiKey || secret.QWEN_API_KEY;
+  const endpoint = secret.endpoint || secret.QWEN_ENDPOINT;
+  const model = secret.model || secret.QWEN_MODEL;
+  
+  if (!apiKey) {
+    console.error('[AnalyzeWorker] Secret contents:', Object.keys(secret));
+    throw new Error('API key not found in secret (checked apiKey and QWEN_API_KEY)');
+  }
+  
   qwenAdapterCache = new QwenAdapter({
-    apiKey: secret.apiKey,
-    endpoint: secret.endpoint
+    apiKey,
+    endpoint,
+    model
   });
   
   console.log('[AnalyzeWorker] Qwen adapter initialized');
@@ -294,11 +306,79 @@ exports.handler = async (event) => {
     
     const { jobId, novelId, userId } = messageBody;
     
-    console.log(`[AnalyzeWorker] Starting job ${jobId} for novel ${novelId}`);
+    console.log(`[AnalyzeWorker] Received message for job ${jobId}`);
     
     try {
-      // 1. Update job to running
-      await updateJob(jobId, 'running', { percentage: 5, stage: 'initializing' });
+      // ✅ IDEMPOTENCY CHECK: Get current job status
+      const existingJob = await docClient.send(
+        new GetCommand({
+          TableName: TABLE_NAME,
+          Key: {
+            PK: `JOB#${jobId}`,
+            SK: `JOB#${jobId}`
+          }
+        })
+      );
+      
+      if (!existingJob.Item) {
+        console.warn(`[AnalyzeWorker] ⚠️ Job ${jobId} not found in DynamoDB, skipping`);
+        continue;
+      }
+      
+      const currentStatus = existingJob.Item.status;
+      console.log(`[AnalyzeWorker] Job ${jobId} current status: ${currentStatus}`);
+      
+      // ✅ Skip if already completed
+      if (currentStatus === 'completed') {
+        console.log(`[AnalyzeWorker] ✅ Job ${jobId} already completed (storyboardId: ${existingJob.Item.progress?.storyboardId}), skipping duplicate message`);
+        continue;
+      }
+      
+      // ✅ Skip if already running (duplicate message from visibility timeout)
+      if (currentStatus === 'running') {
+        console.log(`[AnalyzeWorker] 🔄 Job ${jobId} already running (stage: ${existingJob.Item.progress?.stage}), skipping duplicate message`);
+        continue;
+      }
+      
+      // ✅ Allow retry if failed
+      if (currentStatus === 'failed') {
+        console.log(`[AnalyzeWorker] 🔁 Job ${jobId} previously failed, retrying...`);
+      }
+      
+      console.log(`[AnalyzeWorker] 🚀 Starting job ${jobId} for novel ${novelId}`);
+      
+      // ✅ Use conditional update to prevent race conditions
+      try {
+        const timestamp = new Date().toISOString();
+        await docClient.send(new UpdateCommand({
+          TableName: TABLE_NAME,
+          Key: {
+            PK: `JOB#${jobId}`,
+            SK: `JOB#${jobId}`
+          },
+          UpdateExpression: 'SET #status = :running, updatedAt = :updatedAt, progress = :progress',
+          ConditionExpression: '#status = :queued OR #status = :failed',
+          ExpressionAttributeNames: {
+            '#status': 'status'
+          },
+          ExpressionAttributeValues: {
+            ':queued': 'queued',
+            ':failed': 'failed',
+            ':running': 'running',
+            ':updatedAt': timestamp,
+            ':progress': { percentage: 5, stage: 'initializing' }
+          }
+        }));
+        console.log(`[AnalyzeWorker] Job ${jobId} updated: running ({"percentage":5,"stage":"initializing"})`);
+      } catch (error) {
+        if (error.name === 'ConditionalCheckFailedException') {
+          console.log(`[AnalyzeWorker] ⚡ Job ${jobId} status changed by another process, skipping`);
+          continue;
+        }
+        throw error;
+      }
+      
+      // 1. Job already set to running above (with conditional check)
       
       // 2. Fetch novel text
       await updateJob(jobId, 'running', { percentage: 10, stage: 'fetching_text' });
@@ -328,11 +408,27 @@ exports.handler = async (event) => {
       const valid = validateStoryboard(storyboard);
       
       if (!valid) {
-        console.warn('[AnalyzeWorker] Storyboard validation failed:', validateStoryboard.errors);
+        console.error('[AnalyzeWorker] ❌ Storyboard validation failed');
+        console.error('[AnalyzeWorker] Validation errors:', JSON.stringify(validateStoryboard.errors, null, 2));
+        console.error('[AnalyzeWorker] Generated storyboard structure:', JSON.stringify({
+          hasTitle: !!storyboard.title,
+          hasSummary: !!storyboard.summary,
+          panelsCount: storyboard.panels?.length,
+          charactersCount: storyboard.characters?.length,
+          scenesCount: storyboard.scenes?.length,
+          firstPanel: storyboard.panels?.[0],
+          firstCharacter: storyboard.characters?.[0],
+          firstScene: storyboard.scenes?.[0]
+        }, null, 2));
+        
+        // Log the FULL storyboard for debugging
+        console.error('[AnalyzeWorker] 📄 Full Generated Storyboard (for debugging):');
+        console.error(JSON.stringify(storyboard, null, 2));
+        
         throw new Error('Generated storyboard does not match schema');
       }
       
-      console.log('[AnalyzeWorker] Storyboard validated successfully');
+      console.log('[AnalyzeWorker] ✅ Storyboard validated successfully');
       
       // 6. Write to DynamoDB
       await updateJob(jobId, 'running', { percentage: 90, stage: 'writing_database' });
@@ -358,8 +454,8 @@ exports.handler = async (event) => {
         stage: 'failed'
       }, error.message);
       
-      // Re-throw to let SQS handle retry/DLQ
-      throw error;
+      console.warn(`[AnalyzeWorker] 消息 ${jobId} 将被标记为已处理以避免队列阻塞`);
+      continue;
     }
   }
   
