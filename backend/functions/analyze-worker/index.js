@@ -151,6 +151,12 @@ async function updateJob(jobId, status, progress = {}, errorMessage = null) {
   if (status === 'completed') {
     updateParams.UpdateExpression += ', completedAt = :completedAt';
     updateParams.ExpressionAttributeValues[':completedAt'] = timestamp;
+    
+    // ✅ 如果 progress 中有 storyboardId，同时更新顶层字段
+    if (progress.storyboardId) {
+      updateParams.UpdateExpression += ', storyboardId = :storyboardId';
+      updateParams.ExpressionAttributeValues[':storyboardId'] = progress.storyboardId;
+    }
   }
   
   if (status === 'failed' && errorMessage) {
