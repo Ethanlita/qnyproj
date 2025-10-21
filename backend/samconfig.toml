@@ -18,7 +18,9 @@ confirm_changeset = false
 resolve_s3 = true
 s3_prefix = "qnyproj-api"
 region = "us-east-1"
-parameter_overrides = "MyCognitoUserPoolId=us-east-1_Tx45oEoJx"
+# Note: parameter_overrides MUST be passed via command line or deploy.sh script
+# This ensures environment variables are properly expanded
+# DO NOT add parameter_overrides here - it will override command line values!
 
 [default.package.parameters]
 resolve_s3 = true

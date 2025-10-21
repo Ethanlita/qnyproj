@@ -356,16 +356,33 @@ sam local start-api
 #### 步骤 7: 部署
 
 ```bash
-# 部署后端
+# 推荐方式：使用 deploy.sh 脚本（自动处理环境变量）
 cd backend
-sam build --use-container
-sam deploy
+./deploy.sh
+
+# 或者手动部署（需要先导出环境变量）
+cd backend
+source <(grep -v '^#' .env | grep -v '^$')
+sam build --use-container --cached && \
+sam deploy \
+    --no-confirm-changeset \
+    --no-fail-on-empty-changeset \
+    --parameter-overrides \
+        "MyCognitoUserPoolId=us-east-1_Tx45oEoJx" \
+        "QwenApiKey=$QWEN_API_KEY" \
+        "QwenEndpoint=$QWEN_ENDPOINT" \
+        "QwenModel=$QWEN_MODEL"
 
 # 或者推送到 main 分支，让 CI/CD 自动部署
 git add .
 git commit -m "feat: add users endpoint"
 git push origin main
 ```
+
+**重要提示**：
+- ✅ **必须使用 `deploy.sh` 或传递 `--parameter-overrides`**，否则 Secrets Manager 会被更新为占位符！
+- ✅ `backend/.env` 文件必须包含 `QWEN_API_KEY`、`QWEN_ENDPOINT`、`QWEN_MODEL`
+- ❌ **不要在 `samconfig.toml` 中配置 `parameter_overrides`**（会覆盖命令行参数）
 
 ## 🚀 部署信息
 
@@ -390,13 +407,27 @@ git push origin main
 
 ### GitHub Actions Secrets 配置
 
-需要在 GitHub 仓库配置以下 Secrets:
+需要在 GitHub 仓库配置以下 Secrets：
 
 ```yaml
 AWS_ACCESS_KEY_ID: "AKIA..."
 AWS_SECRET_ACCESS_KEY: "wJal..."
 AWS_REGION: "us-east-1"
+QWEN_API_KEY: "sk-7cbd..."  # ⭐ 新增！Qwen API Key
+QWEN_ENDPOINT: "https://dashscope-intl.aliyuncs.com/compatible-mode/v1"  # ⭐ 新增！
+QWEN_MODEL: "qwen-plus"  # ⭐ 新增！
 ```
+
+**配置步骤**：
+1. 进入 GitHub 仓库：https://github.com/Ethanlita/qnyproj
+2. 点击 `Settings` → `Secrets and variables` → `Actions`
+3. 点击 `New repository secret`
+4. 添加以上所有 Secret（名称和值完全一致）
+
+**重要提示**：
+- ✅ 所有 Secret 都必须配置，否则 CI/CD 部署会失败
+- ✅ `QWEN_API_KEY`、`QWEN_ENDPOINT`、`QWEN_MODEL` 必须与 `backend/.env` 中的值一致
+- ✅ GitHub Actions 会在每次推送到 `main` 分支时自动部署
 
 ### SAM 配置文件 (`backend/samconfig.toml`)
 
@@ -405,10 +436,37 @@ AWS_REGION: "us-east-1"
 stack_name = "qnyproj-api"
 region = "us-east-1"
 capabilities = "CAPABILITY_IAM"
-parameter_overrides = "MyCognitoUserPoolId=us-east-1_Tx45oEoJx"
 confirm_changeset = false
 resolve_s3 = true
+# ⚠️ 注意：不要在这里配置 parameter_overrides！
+# 参数必须通过命令行传递，以正确展开环境变量
 ```
+
+### 本地部署脚本 (`backend/deploy.sh`)
+
+项目提供了 `deploy.sh` 脚本，自动处理环境变量加载和部署：
+
+```bash
+#!/bin/bash
+set -e
+
+# 1. 加载 .env 文件中的环境变量
+# 2. 验证必需变量（QWEN_API_KEY、QWEN_ENDPOINT、QWEN_MODEL）
+# 3. 执行 sam build --use-container --cached
+# 4. 执行 sam deploy 并传递所有参数
+# 5. 验证 Secrets Manager 内容是否正确
+
+# 使用方法：
+cd backend
+./deploy.sh
+```
+
+**关键特性**：
+- ✅ 自动从 `.env` 加载环境变量
+- ✅ 验证必需的 Qwen 配置
+- ✅ 确保 Secrets Manager 被正确更新
+- ✅ 前台运行，实时显示部署进度
+- ✅ 部署后自动验证 Secret 内容
 
 ## 🔧 常用 NPM 脚本
 
