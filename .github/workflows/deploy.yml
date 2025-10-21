@@ -58,10 +58,10 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ secrets.AWS_REGION }}
 
-      - name: Build SAM application
+      - name: Install backend dependencies
         run: |
           cd backend
-          sam build --use-container
+          npm install
 
       - name: Sync secrets to AWS Secrets Manager
         run: |
@@ -82,6 +82,11 @@ jobs:
           rm .env
         env:
           AWS_DEFAULT_REGION: ${{ secrets.AWS_REGION }}
+
+      - name: Build SAM application
+        run: |
+          cd backend
+          sam build --use-container
 
       - name: Deploy to AWS
         run: |
