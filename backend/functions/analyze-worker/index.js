@@ -22,8 +22,14 @@ const docClient = DynamoDBDocumentClient.from(dynamodbClient);
 const s3Client = new S3Client({});
 const secretsClient = new SecretsManagerClient({});
 
-// AJV validator
-const ajv = new Ajv({ allErrors: true });
+// AJV validator - 宽容模式，只验证结构，不验证类型严格性
+const ajv = new Ajv({ 
+  allErrors: true,
+  strict: false,           // 不使用严格模式
+  coerceTypes: true,       // 自动类型转换（如 "18" -> 18）
+  useDefaults: true,       // 使用默认值
+  removeAdditional: false  // 保留额外的字段
+});
 
 // Environment variables
 const TABLE_NAME = process.env.TABLE_NAME;

@@ -3,7 +3,11 @@
   "title": "Storyboard Schema",
   "description": "JSON Schema for comic storyboard generation from novel text",
   "type": "object",
-  "required": ["panels", "characters", "scenes"],
+  "required": [
+    "panels",
+    "characters",
+    "scenes"
+  ],
   "properties": {
     "panels": {
       "type": "array",
@@ -11,17 +15,20 @@
       "description": "Array of comic panels in sequential order",
       "items": {
         "type": "object",
-        "required": ["page", "index", "scene", "shotType", "cameraAngle", "background", "atmosphere"],
+        "required": [
+          "page",
+          "index",
+          "scene",
+          "shotType",
+          "cameraAngle",
+          "background",
+          "atmosphere"
+        ],
         "properties": {
           "page": {
-            "type": "integer",
-            "minimum": 1,
             "description": "Page number (1-based)"
           },
           "index": {
-            "type": "integer",
-            "minimum": 0,
-            "maximum": 5,
             "description": "Panel index on the page (0-5, 6 panels per page)"
           },
           "scene": {
@@ -32,7 +39,10 @@
           },
           "background": {
             "type": "object",
-            "required": ["setting", "timeOfDay"],
+            "required": [
+              "setting",
+              "timeOfDay"
+            ],
             "description": "Background environment details",
             "properties": {
               "sceneId": {
@@ -45,18 +55,15 @@
               },
               "timeOfDay": {
                 "type": "string",
-                "enum": ["dawn", "morning", "noon", "afternoon", "dusk", "evening", "night", "midnight"],
-                "description": "Time of day for lighting reference"
+                "description": "Time of day for lighting reference. Examples: dawn, morning, noon, afternoon, dusk, evening, night, midnight"
               },
               "weather": {
                 "type": "string",
-                "enum": ["clear", "cloudy", "rainy", "snowy", "foggy", "stormy", "windy"],
-                "description": "Weather conditions affecting the scene"
+                "description": "Weather conditions affecting the scene. Examples: clear, cloudy, rainy, snowy, foggy, stormy, windy"
               },
               "lighting": {
                 "type": "string",
-                "enum": ["natural", "artificial", "dramatic", "soft", "harsh", "backlit", "silhouette"],
-                "description": "Lighting style and quality"
+                "description": "Lighting style and quality. Examples: natural, artificial, dramatic, soft, harsh, backlit, silhouette"
               },
               "details": {
                 "type": "array",
@@ -69,23 +76,24 @@
           },
           "atmosphere": {
             "type": "object",
-            "required": ["mood"],
+            "required": [
+              "mood"
+            ],
             "description": "Emotional and sensory atmosphere",
             "properties": {
               "mood": {
                 "type": "string",
-                "enum": [
-                  "peaceful", "tense", "romantic", "mysterious", "melancholic", 
-                  "joyful", "dramatic", "calm", "chaotic", "nostalgic", "ominous", "hopeful"
-                ],
-                "description": "Overall emotional tone of the panel"
+                "description": "Overall emotional tone of the panel. Examples: peaceful, tense, romantic, mysterious, melancholic, joyful, dramatic, calm, chaotic, nostalgic, ominous, hopeful"
               },
               "soundEffects": {
                 "type": "array",
                 "description": "Sound effects present in the scene",
                 "items": {
                   "type": "object",
-                  "required": ["sound", "style"],
+                  "required": [
+                    "sound",
+                    "style"
+                  ],
                   "properties": {
                     "sound": {
                       "type": "string",
@@ -93,7 +101,6 @@
                     },
                     "style": {
                       "type": "string",
-                      "enum": ["subtle", "prominent", "emphasized"],
                       "description": "Visual prominence of the sound effect"
                     }
                   }
@@ -110,13 +117,11 @@
           },
           "shotType": {
             "type": "string",
-            "enum": ["close-up", "medium", "wide", "extreme-wide", "extreme-close-up", "cowboy-shot"],
-            "description": "Camera shot distance/framing"
+            "description": "Camera shot distance/framing. Examples: close-up, medium, wide, extreme-wide, extreme-close-up, cowboy-shot"
           },
           "cameraAngle": {
             "type": "string",
-            "enum": ["eye-level", "high-angle", "low-angle", "birds-eye", "worms-eye", "dutch-angle", "over-shoulder"],
-            "description": "Camera angle perspective"
+            "description": "Camera angle perspective. Examples: eye-level, high-angle, low-angle, birds-eye, worms-eye, dutch-angle, over-shoulder"
           },
           "composition": {
             "type": "object",
@@ -128,13 +133,11 @@
               },
               "depthOfField": {
                 "type": "string",
-                "enum": ["shallow", "deep", "normal"],
-                "description": "Focus depth (shallow=blurred background, deep=everything sharp)"
+                "description": "Focus depth (shallow=blurred background, deep=everything sharp). Examples: shallow, deep, normal"
               },
               "rule": {
                 "type": "string",
-                "enum": ["rule-of-thirds", "centered", "golden-ratio", "symmetrical", "dynamic"],
-                "description": "Compositional guideline used"
+                "description": "Compositional guideline used. Examples: rule-of-thirds, golden-ratio, center-composition, diagonal, leading-lines"
               }
             }
           },
@@ -144,18 +147,15 @@
             "properties": {
               "genre": {
                 "type": "string",
-                "enum": ["shonen", "shoujo", "seinen", "josei", "realistic", "chibi", "sketch"],
-                "description": "Manga/art genre style"
+                "description": "Manga/art genre style. Examples: shonen, shoujo, seinen, josei, realistic, chibi, sketch"
               },
               "lineWeight": {
                 "type": "string",
-                "enum": ["thin", "medium", "thick", "varied"],
-                "description": "Line art thickness"
+                "description": "Line art thickness. Examples: thin, medium, thick, varied"
               },
               "shading": {
                 "type": "string",
-                "enum": ["screentone", "crosshatch", "cel-shading", "soft-shading", "high-contrast"],
-                "description": "Shading technique"
+                "description": "Shading technique. Examples: screentone, crosshatch, cel-shading, soft-shading, high-contrast"
               },
               "colorPalette": {
                 "type": "string",
@@ -168,7 +168,9 @@
             "description": "Characters appearing in this panel",
             "items": {
               "type": "object",
-              "required": ["name"],
+              "required": [
+                "name"
+              ],
               "properties": {
                 "name": {
                   "type": "string",
@@ -181,17 +183,11 @@
                 },
                 "expression": {
                   "type": "string",
-                  "enum": [
-                    "neutral", "happy", "sad", "angry", "surprised", "determined", 
-                    "fearful", "confused", "excited", "shy", "disgusted", "contempt",
-                    "anxious", "loving", "jealous", "proud"
-                  ],
-                  "description": "Character facial expression"
+                  "description": "Character facial expression. Examples: neutral, happy, sad, angry, surprised, determined, fearful, confused, excited, shy, disgusted, contempt, anxious, loving, jealous, proud"
                 },
                 "position": {
                   "type": "string",
-                  "enum": ["foreground", "midground", "background"],
-                  "description": "Character's depth position in the scene"
+                  "description": "Character's depth position in the scene. Examples: foreground, midground, background"
                 }
               }
             }
@@ -201,7 +197,10 @@
             "description": "Dialogue bubbles in this panel",
             "items": {
               "type": "object",
-              "required": ["speaker", "text"],
+              "required": [
+                "speaker",
+                "text"
+              ],
               "properties": {
                 "speaker": {
                   "type": "string",
@@ -215,14 +214,12 @@
                 },
                 "bubbleType": {
                   "type": "string",
-                  "enum": ["speech", "thought", "narration", "scream", "whisper", "shout"],
                   "default": "speech",
-                  "description": "Type of dialogue bubble"
+                  "description": "Type of dialogue bubble. Examples: speech, thought, narration, scream, whisper, shout"
                 },
                 "emotion": {
                   "type": "string",
-                  "enum": ["calm", "excited", "angry", "sad", "fearful", "surprised"],
-                  "description": "Emotional tone of the dialogue"
+                  "description": "Emotional tone of the dialogue. Examples: neutral, excited, angry, sad, scared, confused, joking"
                 }
               }
             }
@@ -233,11 +230,7 @@
           },
           "narrativeFunction": {
             "type": "string",
-            "enum": [
-              "establishing-shot", "action", "reaction", "dialogue", "transition", 
-              "dramatic-reveal", "flashback", "montage", "emotional-beat"
-            ],
-            "description": "Narrative purpose of this panel in storytelling"
+            "description": "Narrative purpose of this panel in storytelling. Examples: establishing-shot, action, reaction, dialogue, transition, dramatic-reveal, flashback, montage, emotional-beat"
           }
         }
       }
@@ -248,7 +241,10 @@
       "description": "Character bible - all characters appearing in the story",
       "items": {
         "type": "object",
-        "required": ["name", "role"],
+        "required": [
+          "name",
+          "role"
+        ],
         "properties": {
           "name": {
             "type": "string",
@@ -257,8 +253,7 @@
           },
           "role": {
             "type": "string",
-            "enum": ["protagonist", "antagonist", "supporting", "background"],
-            "description": "Character role in the story"
+            "description": "Character role in the story. Examples: protagonist, antagonist, supporting, background, mentor, love-interest"
           },
           "appearance": {
             "type": "object",
@@ -266,14 +261,10 @@
             "properties": {
               "gender": {
                 "type": "string",
-                "enum": ["male", "female", "other"],
                 "description": "Character gender"
               },
               "age": {
-                "type": "integer",
-                "minimum": 0,
-                "maximum": 150,
-                "description": "Character age"
+                "description": "Character age (can be number like 30 or descriptive string like 'elderly', 'young', 'middle-aged')"
               },
               "hairColor": {
                 "type": "string",
@@ -327,7 +318,12 @@
       "description": "Scene bible - all recurring locations/settings in the story for visual consistency",
       "items": {
         "type": "object",
-        "required": ["id", "name", "type", "description"],
+        "required": [
+          "id",
+          "name",
+          "type",
+          "description"
+        ],
         "properties": {
           "id": {
             "type": "string",
@@ -341,11 +337,7 @@
           },
           "type": {
             "type": "string",
-            "enum": [
-              "indoor", "outdoor", "indoor-outdoor-transition", 
-              "natural-environment", "urban", "rural", "fantasy", "abstract"
-            ],
-            "description": "Scene category type"
+            "description": "Scene category type. Examples: indoor, outdoor, indoor-outdoor, natural, urban, rural, fantasy, abstract"
           },
           "description": {
             "type": "string",
@@ -378,13 +370,11 @@
                 "properties": {
                   "naturalLight": {
                     "type": "string",
-                    "enum": ["abundant", "moderate", "limited", "none"],
-                    "description": "Amount of natural light"
+                    "description": "Amount of natural light. Examples: abundant, moderate, limited, none"
                   },
                   "artificialLight": {
                     "type": "string",
-                    "enum": ["none", "minimal", "moderate", "heavy"],
-                    "description": "Artificial lighting presence"
+                    "description": "Artificial lighting presence. Examples: none, minimal, moderate, heavy"
                   },
                   "lightSources": {
                     "type": "array",
@@ -421,8 +411,7 @@
             "properties": {
               "size": {
                 "type": "string",
-                "enum": ["cramped", "small", "medium", "large", "vast"],
-                "description": "Overall size/scale of the space"
+                "description": "Overall size/scale of the space. Examples: cramped, small, medium, large, vast"
               },
               "layout": {
                 "type": "string",
@@ -452,11 +441,13 @@
             "description": "How this scene appears at different times",
             "items": {
               "type": "object",
-              "required": ["timeOfDay", "description"],
+              "required": [
+                "timeOfDay",
+                "description"
+              ],
               "properties": {
                 "timeOfDay": {
-                  "type": "string",
-                  "enum": ["dawn", "morning", "noon", "afternoon", "dusk", "evening", "night", "midnight"]
+                  "type": "string"
                 },
                 "description": {
                   "type": "string",
@@ -474,11 +465,13 @@
             "description": "How this scene appears in different weather",
             "items": {
               "type": "object",
-              "required": ["weather", "description"],
+              "required": [
+                "weather",
+                "description"
+              ],
               "properties": {
                 "weather": {
-                  "type": "string",
-                  "enum": ["clear", "cloudy", "rainy", "snowy", "foggy", "stormy", "windy"]
+                  "type": "string"
                 },
                 "description": {
                   "type": "string",
@@ -489,29 +482,19 @@
           },
           "narrativeRole": {
             "type": "string",
-            "enum": [
-              "primary-setting", "secondary-setting", "transition-space", 
-              "character-sanctuary", "conflict-zone", "symbolic-space"
-            ],
-            "description": "This scene's role in the narrative"
+            "description": "This scene's role in the narrative. Examples: primary-setting, secondary-setting, transitional, symbolic, flashback-location, dream-sequence"
           },
           "firstAppearance": {
             "type": "object",
             "description": "When this scene first appears in the story",
             "properties": {
               "chapter": {
-                "type": "integer",
-                "minimum": 1,
                 "description": "Chapter number"
               },
               "page": {
-                "type": "integer",
-                "minimum": 1,
                 "description": "Page number"
               },
               "panelIndex": {
-                "type": "integer",
-                "minimum": 0,
                 "description": "Panel index"
               }
             }
@@ -527,8 +510,6 @@
       }
     },
     "totalPages": {
-      "type": "integer",
-      "minimum": 1,
       "description": "Total number of pages in the storyboard"
     }
   }
