@@ -59,7 +59,11 @@ exports.handler = async (event) => {
 
     const manager = buildManager();
 
-    if (method === 'GET' && resource === '/novels/{novelId}/bible') {
+    // Match both {novelId} and {id} path patterns
+    const isBiblePath = resource === '/novels/{novelId}/bible' || resource === '/novels/{id}/bible';
+    const isHistoryPath = resource === '/novels/{novelId}/bible/history' || resource === '/novels/{id}/bible/history';
+
+    if (method === 'GET' && isBiblePath) {
       let versionOptions = {};
       try {
         const version = parseVersionParam(event.queryStringParameters);
@@ -87,7 +91,7 @@ exports.handler = async (event) => {
       });
     }
 
-    if (method === 'GET' && resource === '/novels/{novelId}/bible/history') {
+    if (method === 'GET' && isHistoryPath) {
       let options = {};
       try {
         const limit = parseLimitParam(event.queryStringParameters);

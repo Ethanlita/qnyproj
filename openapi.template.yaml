@@ -232,9 +232,9 @@ paths:
         uri:
           Fn::Sub: arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${AnalyzeNovelFunction.Arn}/invocations
         payloadFormatVersion: "2.0"
-  /novels/{novelId}/bible:
+  /novels/{id}/bible:
     parameters:
-      - name: novelId
+      - name: id
         in: path
         required: true
         schema:
@@ -279,9 +279,9 @@ paths:
         uri:
           Fn::Sub: arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${BibleFunction.Arn}/invocations
         payloadFormatVersion: "2.0"
-  /novels/{novelId}/bible/history:
+  /novels/{id}/bible/history:
     parameters:
-      - name: novelId
+      - name: id
         in: path
         required: true
         schema:
