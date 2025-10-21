@@ -61,11 +61,39 @@ jobs:
       - name: Install backend dependencies
         run: |
           cd backend
+          echo "📦 Installing backend dependencies..."
           npm install
+          echo "✅ Backend dependencies installed"
+          echo ""
+          echo "📋 Installed packages:"
+          npm list --depth=0 || true
+
+      - name: Verify critical modules
+        run: |
+          cd backend
+          echo "🔍 Verifying critical modules exist..."
+          
+          echo "✓ Checking lib/qwen-adapter.js..."
+          test -f lib/qwen-adapter.js && echo "  ✅ Found" || echo "  ❌ Missing"
+          
+          echo "✓ Checking lib/schema-to-prompt.js..."
+          test -f lib/schema-to-prompt.js && echo "  ✅ Found" || echo "  ❌ Missing"
+          
+          echo "✓ Checking lib/get-secrets.js..."
+          test -f lib/get-secrets.js && echo "  ✅ Found" || echo "  ❌ Missing"
+          
+          echo "✓ Checking schemas/storyboard.json..."
+          test -f schemas/storyboard.json && echo "  ✅ Found" || echo "  ❌ Missing"
+          
+          echo ""
+          echo "📂 lib/ directory contents:"
+          ls -lh lib/
 
       - name: Sync secrets to AWS Secrets Manager
         run: |
           cd backend
+          echo "🔐 Syncing secrets to AWS Secrets Manager..."
+          
           # Create temporary .env from GitHub Secrets
           cat > .env << EOF
           QWEN_API_KEY=${{ secrets.QWEN_API_KEY }}
@@ -75,27 +103,121 @@ jobs:
           AWS_REGION=${{ secrets.AWS_REGION }}
           EOF
           
+          echo "📝 .env file created with secrets"
+          
           # Sync to Secrets Manager
           node scripts/sync-secrets.js --stack-name qnyproj-api
           
+          echo "✅ Secrets synced successfully"
+          
           # Clean up
           rm .env
+          echo "🧹 Cleaned up temporary .env file"
         env:
           AWS_DEFAULT_REGION: ${{ secrets.AWS_REGION }}
 
       - name: Build SAM application
         run: |
           cd backend
-          sam build --use-container
+          echo "🔨 Building SAM application with container..."
+          echo "   This will ensure consistent builds across environments"
+          echo ""
+          
+          sam build --use-container --cached
+          
+          echo ""
+          echo "✅ SAM build completed"
+          echo ""
+          echo "📦 Build artifacts:"
+          ls -lh .aws-sam/build/ | head -20
+
+      - name: Verify build artifacts
+        run: |
+          cd backend
+          echo "🔍 Verifying build artifacts for AnalyzeWorkerFunction..."
+          echo ""
+          
+          BUILD_DIR=".aws-sam/build/AnalyzeWorkerFunction"
+          
+          echo "📂 Function directory structure:"
+          ls -lh "$BUILD_DIR/" | head -10
+          echo ""
+          
+          echo "📂 lib/ directory in build:"
+          if [ -d "$BUILD_DIR/lib" ]; then
+            ls -lh "$BUILD_DIR/lib/"
+            echo ""
+            
+            # Verify critical files
+            echo "🔍 Verifying critical files in build:"
+            for file in "lib/qwen-adapter.js" "lib/schema-to-prompt.js" "lib/get-secrets.js" "schemas/storyboard.json"; do
+              if [ -f "$BUILD_DIR/$file" ]; then
+                SIZE=$(stat -f%z "$BUILD_DIR/$file" 2>/dev/null || stat -c%s "$BUILD_DIR/$file" 2>/dev/null)
+                echo "  ✅ $file (${SIZE} bytes)"
+              else
+                echo "  ❌ MISSING: $file"
+                exit 1
+              fi
+            done
+          else
+            echo "  ❌ ERROR: lib/ directory not found in build!"
+            exit 1
+          fi
+          
+          echo ""
+          echo "✅ All critical files verified in build"
 
       - name: Deploy to AWS
         run: |
           cd backend
+          echo "🚀 Deploying to AWS..."
+          echo "   Stack: qnyproj-api"
+          echo "   Region: ${{ secrets.AWS_REGION }}"
+          echo ""
+          
           sam deploy \
             --no-confirm-changeset \
             --no-fail-on-empty-changeset \
             --parameter-overrides \
               "MyCognitoUserPoolId=us-east-1_Tx45oEoJx"
+          
+          echo ""
+          echo "✅ Deployment completed successfully"
+        env:
+          AWS_DEFAULT_REGION: ${{ secrets.AWS_REGION }}
+
+      - name: Verify deployment
+        run: |
+          cd backend
+          echo "🔍 Verifying deployment..."
+          echo ""
+          
+          # Get Lambda function name
+          FUNCTION_NAME=$(aws cloudformation describe-stack-resources \
+            --stack-name qnyproj-api \
+            --query 'StackResources[?LogicalResourceId==`AnalyzeWorkerFunction`].PhysicalResourceId' \
+            --output text)
+          
+          echo "📊 Lambda Function: $FUNCTION_NAME"
+          
+          # Check function configuration
+          echo ""
+          echo "🔧 Function Configuration:"
+          aws lambda get-function-configuration \
+            --function-name "$FUNCTION_NAME" \
+            --query '{Runtime:Runtime,Memory:MemorySize,Timeout:Timeout}' \
+            --output table
+          
+          # Check environment variables
+          echo ""
+          echo "🔧 Environment Variables:"
+          aws lambda get-function-configuration \
+            --function-name "$FUNCTION_NAME" \
+            --query 'Environment.Variables' \
+            --output json | jq -r 'to_entries | .[] | "  - \(.key): \(.value[:50])..."'
+          
+          echo ""
+          echo "✅ Deployment verification completed"
         env:
           AWS_DEFAULT_REGION: ${{ secrets.AWS_REGION }}
 
