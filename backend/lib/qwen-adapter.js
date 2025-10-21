@@ -17,43 +17,18 @@
 const OpenAI = require('openai');
 const fs = require('fs');
 const path = require('path');
+const { buildSystemPrompt } = require('./schema-to-prompt');
 
 /**
- * System prompt for storyboard generation
+ * Custom example for storyboard (overrides auto-generated one)
+ * This provides a high-quality reference for Qwen
  */
-const STORYBOARD_SYSTEM_PROMPT = `你是一个专业的漫画分镜师，擅长将小说文本转换为详细的视觉分镜脚本。
-
-📖 **跨章节连续性规则**（如果提供了现有圣经）：
-
-- **复用已有角色**：如果用户提供了 existingCharacters，必须在 characters 数组中包含所有现有角色（保持原有属性不变），并添加新出现的角色
-- **复用已有场景**：如果用户提供了 existingScenes，必须在 scenes 数组中包含所有现有场景（保持原有属性不变），并添加新出现的场景
-- **引用场景ID**：在 panel.background.sceneId 中优先使用现有场景的 id，确保重复出现的地点使用相同的场景定义
-- **补全新内容**：遇到新角色或新场景时，按照正常规则创建新条目，但保持与现有风格一致
-- **禁止修改**：不要修改现有角色的 appearance 或现有场景的 visualCharacteristics，保持视觉连续性
-
-🎬 **核心任务规则**：
-
-1. **场景描写**：详细描述每个面板的视觉画面，包括环境、氛围、人物动作
-2. **背景设定**：明确场景地点（setting）、时间（timeOfDay）、天气（weather）、光照（lighting）
-3. **镜头设计**：选择合适的景别（shotType）和机位（cameraAngle）强化叙事
-4. **氛围营造**：定义情绪基调（mood）、音效（soundEffects）、粒子效果（particleEffects）
-5. **画风控制**：指定艺术风格（artStyle）包括类型、线条、阴影、配色
-6. **构图原则**：运用构图法则（composition）确定焦点、景深、视觉引导
-7. **角色刻画**：准确描述姿态（pose）、表情（expression）、位置（position）
-8. **对白处理**：提取对话，标注说话者、气泡类型（bubbleType）、情感（emotion）
-9. **叙事功能**：明确面板的故事作用（narrativeFunction）
-10. **分页规范**：每页 6 个面板，index 从 0-5
-11. **场景圣经（Scene Bible）**：为重复出现的场景创建统一视觉定义，确保跨章节一致性
-
-⚠️ **严格遵循 JSON Schema 字段名称**，完整示例如下：
-
-{
+const STORYBOARD_EXAMPLE = {
   "panels": [
     {
       "page": 1,
       "index": 0,
       "scene": "夕阳西下，金色余晖洒在小镇石板路上。李明背着书包独自走在回家路上，街道两旁是低矮砖房。",
-      
       "background": {
         "sceneId": "ancient_town_main_street",
         "setting": "古镇石板街道",
@@ -62,7 +37,6 @@ const STORYBOARD_SYSTEM_PROMPT = `你是一个专业的漫画分镜师，擅长�
         "lighting": "natural",
         "details": ["远处山峦", "街边灯笼", "砖墙上的爬山虎"]
       },
-      
       "atmosphere": {
         "mood": "peaceful",
         "soundEffects": [
@@ -71,23 +45,19 @@ const STORYBOARD_SYSTEM_PROMPT = `你是一个专业的漫画分镜师，擅长�
         ],
         "particleEffects": ["光尘飘浮", "微风吹动树叶"]
       },
-      
       "shotType": "wide",
       "cameraAngle": "eye-level",
-      
       "composition": {
         "focusPoint": "李明的侧影",
         "depthOfField": "deep",
         "rule": "rule-of-thirds"
       },
-      
       "artStyle": {
         "genre": "seinen",
         "lineWeight": "medium",
         "shading": "screentone",
         "colorPalette": "warm sunset tones with golden oranges"
       },
-      
       "characters": [
         {
           "name": "李明",
@@ -96,15 +66,11 @@ const STORYBOARD_SYSTEM_PROMPT = `你是一个专业的漫画分镜师，擅长�
           "position": "midground"
         }
       ],
-      
       "dialogue": [],
-      
       "visualPrompt": "A quiet small town street at sunset, golden light on cobblestone pavement, teenage boy in school uniform walking alone with backpack, low brick houses on both sides, distant mountains, warm peaceful atmosphere, seinen manga style, screentone shading",
-      
       "narrativeFunction": "establishing-shot"
     }
   ],
-  
   "characters": [
     {
       "name": "李明",
@@ -123,7 +89,6 @@ const STORYBOARD_SYSTEM_PROMPT = `你是一个专业的漫画分镜师，擅长�
       "personality": ["内向", "善良", "细心"]
     }
   ],
-  
   "scenes": [
     {
       "id": "ancient_town_main_street",
@@ -160,20 +125,12 @@ const STORYBOARD_SYSTEM_PROMPT = `你是一个专业的漫画分镜师，擅长�
         {
           "timeOfDay": "dusk",
           "description": "夕阳将街道染成金色，街灯开始点亮，炊烟袅袅升起"
-        },
-        {
-          "timeOfDay": "night",
-          "description": "街灯昏黄，店铺大多关门，偶尔路过的行人影子被拉得很长"
         }
       ],
       "weatherVariations": [
         {
           "weather": "rainy",
           "description": "雨水在石板路上形成小水洼，屋檐滴水声清脆，空气中弥漫着泥土香"
-        },
-        {
-          "weather": "snowy",
-          "description": "雪覆盖石板路，青瓦屋顶白雪皑皑，整条街道寂静无声"
         }
       ],
       "narrativeRole": "primary-setting",
@@ -185,31 +142,8 @@ const STORYBOARD_SYSTEM_PROMPT = `你是一个专业的漫画分镜师，擅长�
       "referenceImages": []
     }
   ],
-  
   "totalPages": 1
-}
-
-📋 **枚举值约束**：
-
-shotType: close-up, medium, wide, extreme-wide, extreme-close-up, cowboy-shot
-cameraAngle: eye-level, high-angle, low-angle, birds-eye, worms-eye, dutch-angle, over-shoulder
-timeOfDay: dawn, morning, noon, afternoon, dusk, evening, night, midnight
-weather: clear, cloudy, rainy, snowy, foggy, stormy, windy
-lighting: natural, artificial, dramatic, soft, harsh, backlit, silhouette
-mood: peaceful, tense, romantic, mysterious, melancholic, joyful, dramatic, calm, chaotic, nostalgic, ominous, hopeful
-expression: neutral, happy, sad, angry, surprised, determined, fearful, confused, excited, shy, disgusted, contempt, anxious, loving, jealous, proud
-bubbleType: speech, thought, narration, scream, whisper, shout
-position: foreground, midground, background
-depthOfField: shallow, deep, normal
-artStyle.genre: shonen, shoujo, seinen, josei, realistic, chibi, sketch
-artStyle.shading: screentone, crosshatch, cel-shading, soft-shading, high-contrast
-narrativeFunction: establishing-shot, action, reaction, dialogue, transition, dramatic-reveal, flashback, montage, emotional-beat
-role: protagonist, antagonist, supporting, background
-sceneType: indoor, outdoor, indoor-outdoor, natural, urban, rural, fantasy, abstract
-sceneSize: cramped, small, medium, large, vast
-sceneLighting.naturalLight: abundant, moderate, limited, none
-sceneLighting.artificialLight: none, minimal, moderate, heavy
-sceneNarrativeRole: primary-setting, secondary-setting, transitional, symbolic, flashback-location, dream-sequence`;
+};
 
 /**
  * QwenAdapter class for interacting with Qwen API via DashScope
@@ -238,25 +172,69 @@ class QwenAdapter {
     this.model = model;
     
     // 设置日志文件路径
-    this.logFilePath = path.join(process.cwd(), 'qwen.log');
+    // Lambda 环境下 /var/task 是只读的，直接使用 /tmp
+    const isLambda = !!process.env.AWS_LAMBDA_FUNCTION_NAME;
+    
+    if (isLambda) {
+      this.logFilePath = path.join('/tmp', 'qwen.log');
+      console.log('[QwenAdapter] Lambda 环境检测到，使用 /tmp/qwen.log');
+    } else {
+      // 本地环境：优先使用环境变量，其次使用当前目录
+      const preferredLogPath = process.env.QWEN_LOG_PATH
+        ? path.resolve(process.env.QWEN_LOG_PATH)
+        : path.join(process.cwd(), 'qwen.log');
+      
+      const fallbackLogPath = path.join('/tmp', 'qwen.log');
+      this.logFilePath = preferredLogPath;
+      
+      // 实际尝试写文件来检测是否可写（仅检查目录权限不够）
+      try {
+        fs.mkdirSync(path.dirname(this.logFilePath), { recursive: true });
+        // 尝试写入测试内容
+        fs.appendFileSync(this.logFilePath, '', 'utf8');
+      } catch (err) {
+        console.warn('[QwenAdapter] 路径不可写（错误: ' + err.code + '），切换到 /tmp/qwen.log');
+        this.logFilePath = fallbackLogPath;
+        // 确保 fallback 路径可用
+        try {
+          fs.mkdirSync(path.dirname(fallbackLogPath), { recursive: true });
+        } catch (e) {
+          // /tmp should always be writable
+        }
+      }
+    }
   }
   
   /**
    * Write log to file (UTF-8 encoded to avoid console garbled text)
+   * AND always output to console for CloudWatch
    * @param {string} content - Log content
    */
   log(content) {
     const timestamp = new Date().toISOString();
-    const logEntry = `[${timestamp}] ${content}\n`;
-    fs.appendFileSync(this.logFilePath, logEntry, 'utf8');
+    const logEntry = `[${timestamp}] ${content}`;
+    
+    // Always log to console for CloudWatch visibility
+    console.log(logEntry);
+    
+    // Also try to write to file for local debugging
+    try {
+      fs.appendFileSync(this.logFilePath, logEntry + '\n', 'utf8');
+    } catch (error) {
+      // Silently ignore file write errors in Lambda environment
+    }
   }
   
   /**
    * Clear log file
    */
   clearLog() {
-    if (fs.existsSync(this.logFilePath)) {
-      fs.unlinkSync(this.logFilePath);
+    try {
+      if (fs.existsSync(this.logFilePath)) {
+        fs.unlinkSync(this.logFilePath);
+      }
+    } catch (error) {
+      console.warn('[QwenAdapter] 无法清理日志文件，忽略。');
     }
   }
   
@@ -278,6 +256,8 @@ class QwenAdapter {
    * @returns {Promise<Object>} Generated storyboard with panels and characters
    */
   async generateStoryboard(options) {
+    const overallStartTime = Date.now();
+    
     const {
       text,
       jsonSchema,
@@ -288,7 +268,12 @@ class QwenAdapter {
       chapterNumber
     } = options;
     
-    console.log(`[QwenAdapter] Generating storyboard for text (${text.length} chars)`);
+    console.log(`\n${'='.repeat(70)}`);
+    console.log(`[QwenAdapter] 🚀 Starting storyboard generation`);
+    console.log(`  Text length: ${text.length} chars`);
+    console.log(`  Strict mode: ${strictMode}`);
+    console.log(`  Max chunk length: ${maxChunkLength}`);
+    console.log(`${'='.repeat(70)}\n`);
     
     if (existingCharacters.length > 0) {
       console.log(`[QwenAdapter] Using ${existingCharacters.length} existing characters`);
@@ -298,10 +283,15 @@ class QwenAdapter {
     }
     
     // 1. Split text into intelligent chunks
+    const splitStartTime = Date.now();
     const chunks = this.splitTextIntelligently(text, maxChunkLength);
-    console.log(`[QwenAdapter] Split text into ${chunks.length} chunks`);
+    const splitDuration = Date.now() - splitStartTime;
+    console.log(`[QwenAdapter] ✂️  Split text into ${chunks.length} chunks (${splitDuration}ms)`);
     
     // 2. Process chunks in parallel (pass bibles to first chunk only)
+    console.log(`[QwenAdapter] 📡 Calling Qwen API for ${chunks.length} chunk(s)...`);
+    const apiStartTime = Date.now();
+    
     const responses = await Promise.all(
       chunks.map((chunk, idx) =>
         this.callQwen(
@@ -313,17 +303,21 @@ class QwenAdapter {
           chapterNumber
         )
           .then(result => {
-            console.log(`[QwenAdapter] Chunk ${idx + 1}/${chunks.length} succeeded`);
+            console.log(`[QwenAdapter] ✅ Chunk ${idx + 1}/${chunks.length} succeeded`);
             return result;
           })
           .catch(err => {
-            console.error(`[QwenAdapter] Chunk ${idx + 1}/${chunks.length} failed:`, err.message);
+            console.error(`[QwenAdapter] ❌ Chunk ${idx + 1}/${chunks.length} failed:`, err.message);
             return null;
           })
       )
     );
     
+    const apiDuration = Date.now() - apiStartTime;
+    console.log(`[QwenAdapter] ⏱️  API calls completed in ${apiDuration}ms (${(apiDuration/1000).toFixed(1)}s)`);
+    
     // 3. Filter out failed responses
+    const parseStartTime = Date.now();
     const validResponses = responses.filter(r => r !== null);
     
     if (validResponses.length === 0) {
@@ -335,12 +329,25 @@ class QwenAdapter {
         `[QwenAdapter] ${responses.length - validResponses.length}/${responses.length} chunks failed`
       );
     }
+    const parseDuration = Date.now() - parseStartTime;
+    console.log(`[QwenAdapter] 🔍 Parsed and validated ${validResponses.length} responses (${parseDuration}ms)`);
     
     // 4. Merge storyboards from all chunks
+    const mergeStartTime = Date.now();
     const merged = this.mergeStoryboards(validResponses);
+    const mergeDuration = Date.now() - mergeStartTime;
     console.log(
-      `[QwenAdapter] Merged ${merged.panels.length} panels, ${merged.characters.length} characters, ${merged.scenes.length} scenes`
+      `[QwenAdapter] 🔗 Merged ${merged.panels.length} panels, ${merged.characters.length} characters, ${merged.scenes.length} scenes (${mergeDuration}ms)`
     );
+    
+    // Final summary
+    const totalDuration = Date.now() - overallStartTime;
+    console.log(`\n[QwenAdapter] ⏱️  TOTAL: ${totalDuration}ms (${(totalDuration/1000).toFixed(1)}s) breakdown:`);
+    console.log(`  📝 Split:  ${splitDuration}ms (${(splitDuration/totalDuration*100).toFixed(1)}%)`);
+    console.log(`  🌐 API:    ${apiDuration}ms (${(apiDuration/totalDuration*100).toFixed(1)}%)`);
+    console.log(`  🔍 Parse:  ${parseDuration}ms (${(parseDuration/totalDuration*100).toFixed(1)}%)`);
+    console.log(`  🔗 Merge:  ${mergeDuration}ms (${(mergeDuration/totalDuration*100).toFixed(1)}%)`);
+    console.log(`${'='.repeat(70)}\n`);
     
     return merged;
   }
@@ -391,24 +398,30 @@ class QwenAdapter {
     if (existingScenes.length > 0) {
       this.log(`🏛️  Existing Scenes: ${existingScenes.length}`);
     }
-    this.log('\n💬 System Prompt:');
-    this.log('─'.repeat(60));
-    this.log(STORYBOARD_SYSTEM_PROMPT);
-    this.log('─'.repeat(60));
-    this.log('\n📝 User Input:');
-    this.log('─'.repeat(60));
-    this.log(userMessage);
-    this.log('─'.repeat(60));
-    this.log('\n📋 JSON Schema:');
-    this.log(JSON.stringify(schema, null, 2).substring(0, 500) + '...');
-    this.log('─'.repeat(60));
-    
     for (let attempt = 0; attempt < this.maxRetries; attempt++) {
       try {
+        // 🔥 Generate System Prompt dynamically from schema
+        const systemPrompt = buildSystemPrompt(schema, {
+          customExample: STORYBOARD_EXAMPLE
+        });
+        
+        // 🔍 Log request details to file and CloudWatch
+        this.log('\n💬 System Prompt (generated from schema):');
+        this.log('─'.repeat(60));
+        this.log(systemPrompt.substring(0, 500) + '... (truncated for brevity)');
+        this.log('─'.repeat(60));
+        this.log('\n📝 User Input:');
+        this.log('─'.repeat(60));
+        this.log(userMessage);
+        this.log('─'.repeat(60));
+        this.log('\n📋 JSON Schema:');
+        this.log(JSON.stringify(schema, null, 2).substring(0, 500) + '...');
+        this.log('─'.repeat(60));
+        
         const requestPayload = {
           model: this.model,
           messages: [
-            { role: 'system', content: STORYBOARD_SYSTEM_PROMPT },
+            { role: 'system', content: systemPrompt },
             { role: 'user', content: userMessage }
           ],
           response_format: {
@@ -430,7 +443,7 @@ class QwenAdapter {
         
         const elapsedMs = Date.now() - startTime;
         
-        // 🔍 Log response details to file
+        // 🔍 Log response details (now goes to both file and CloudWatch)
         this.log('\n📥 ===== QWEN API RESPONSE =====');
         this.log(`⏱️  Elapsed: ${elapsedMs} ms`);
         this.log(`🎯 Finish Reason: ${response.choices[0].finish_reason}`);
@@ -449,8 +462,8 @@ class QwenAdapter {
         this.log(`  - scenes: ${Array.isArray(parsed.scenes) ? parsed.scenes.length : 'N/A'}`);
         this.log('─'.repeat(60));
         
-        // Also log to console for test visibility
-        console.log(`✅ Qwen API call succeeded in ${elapsedMs}ms - Check qwen.log for details`);
+        // Summary for quick identification
+        console.log(`✅ [QwenAdapter] Qwen API call succeeded in ${elapsedMs}ms (${response.usage.total_tokens} tokens)`);
         
         return parsed;
         
