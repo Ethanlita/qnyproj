@@ -356,33 +356,17 @@ sam local start-api
 #### 步骤 7: 部署
 
 ```bash
-# 推荐方式：使用 deploy.sh 脚本（自动处理环境变量）
-cd backend
-./deploy.sh
+# 推荐方式：推送到Github main分支后CD
+git commit xxxxxx
+git push
 
-# 或者手动部署（需要先导出环境变量）
-cd backend
-source <(grep -v '^#' .env | grep -v '^$')
-sam build --use-container --cached && \
-sam deploy \
-    --no-confirm-changeset \
-    --no-fail-on-empty-changeset \
-    --parameter-overrides \
-        "MyCognitoUserPoolId=us-east-1_Tx45oEoJx" \
-        "QwenApiKey=$QWEN_API_KEY" \
-        "QwenEndpoint=$QWEN_ENDPOINT" \
-        "QwenModel=$QWEN_MODEL"
+# 或者手动部署
+npm run deploy:backend
 
-# 或者推送到 main 分支，让 CI/CD 自动部署
-git add .
-git commit -m "feat: add users endpoint"
-git push origin main
-```
 
 **重要提示**：
-- ✅ **必须使用 `deploy.sh` 或传递 `--parameter-overrides`**，否则 Secrets Manager 会被更新为占位符！
+- ✅ **不要直接使用sam deploy**，否则 Secrets Manager 会被更新为占位符！
 - ✅ `backend/.env` 文件必须包含 `QWEN_API_KEY`、`QWEN_ENDPOINT`、`QWEN_MODEL`
-- ❌ **不要在 `samconfig.toml` 中配置 `parameter_overrides`**（会覆盖命令行参数）
 
 ## 🚀 部署信息
 
@@ -390,7 +374,7 @@ git push origin main
 
 ```yaml
 后端 API:
-  URL: https://ei7gdiuk16.execute-api.us-east-1.amazonaws.com/dev
+  URL: https://ds0yqv9fn8.execute-api.us-east-1.amazonaws.com/dev
   类型: Edge-Optimized (使用 CloudFront CDN)
   区域: us-east-1
   Lambda: qnyproj-api-HelloWorldFunction-7vF4AmhBaeOA
@@ -398,6 +382,7 @@ git push origin main
 可用端点:
   - GET /edge-probe (公开)
   - GET /items (公开，应该配置认证)
+  - 以及其他deploy后的端点
 
 前端:
   部署方式: GitHub Pages (Deploy from Branch: gh-pages)
@@ -429,36 +414,9 @@ QWEN_MODEL: "qwen-plus"  # ⭐ 新增！
 - ✅ `QWEN_API_KEY`、`QWEN_ENDPOINT`、`QWEN_MODEL` 必须与 `backend/.env` 中的值一致
 - ✅ GitHub Actions 会在每次推送到 `main` 分支时自动部署
 
-### SAM 配置文件 (`backend/samconfig.toml`)
-
-```toml
-[default.deploy.parameters]
-stack_name = "qnyproj-api"
-region = "us-east-1"
-capabilities = "CAPABILITY_IAM"
-confirm_changeset = false
-resolve_s3 = true
-# ⚠️ 注意：不要在这里配置 parameter_overrides！
-# 参数必须通过命令行传递，以正确展开环境变量
-```
-
-### 本地部署脚本 (`backend/deploy.sh`)
-
-项目提供了 `deploy.sh` 脚本，自动处理环境变量加载和部署：
-
-```bash
-#!/bin/bash
-set -e
-
-# 1. 加载 .env 文件中的环境变量
-# 2. 验证必需变量（QWEN_API_KEY、QWEN_ENDPOINT、QWEN_MODEL）
-# 3. 执行 sam build --use-container --cached
-# 4. 执行 sam deploy 并传递所有参数
-# 5. 验证 Secrets Manager 内容是否正确
-
-# 使用方法：
-cd backend
-./deploy.sh
+### 本地部署脚本 (npm run deploy:backend)
+cd (project root dir)
+npm run deploy:backend
 ```
 
 **关键特性**：
@@ -466,7 +424,6 @@ cd backend
 - ✅ 验证必需的 Qwen 配置
 - ✅ 确保 Secrets Manager 被正确更新
 - ✅ 前台运行，实时显示部署进度
-- ✅ 部署后自动验证 Secret 内容
 
 ## 🔧 常用 NPM 脚本
 
@@ -496,8 +453,6 @@ npm run dev:frontend
 # 4. 实现后端 Lambda
 # 5. 部署
 cd backend
-sam build --use-container
-sam deploy
 ```
 
 ## ⚠️ 重要注意事项
@@ -517,144 +472,3 @@ sam deploy
 3. **不要在 Lambda 中硬编码端点路径** - 使用 `event.path` 动态判断
 4. **不要忘记处理 `/dev` 前缀** - API Gateway Stage 会添加前缀
 5. **不要跳过 `npm run generate:frontend-api`** - 修改 API 后必须重新生成
-
-### 常见陷阱
-
-#### 陷阱 1: 路径不匹配
-
-**问题**: Lambda 中定义 `if (path === '/edge-probe')` 但实际路径是 `/dev/edge-probe`
-
-**解决**:
-```javascript
-// 正确方式
-if (path === '/edge-probe' || path === '/dev/edge-probe') {
-    // 处理请求
-}
-```
-
-#### 陷阱 2: CORS 错误
-
-**问题**: 前端调用 API 时浏览器报 CORS 错误
-
-**解决**: 确保 Lambda 响应包含 CORS 头
-```javascript
-return {
-    statusCode: 200,
-    headers: {
-        'Content-Type': 'application/json',
-        'Access-Control-Allow-Origin': '*',  // 必须！
-        'Access-Control-Allow-Headers': 'Content-Type,Authorization'
-    },
-    body: JSON.stringify(data)
-};
-```
-
-#### 陷阱 3: API Gateway 无法调用 Lambda
-
-**问题**: API 返回 "Internal server error"
-
-**原因**: 缺少 Lambda 权限
-
-**解决**: 确保在 `backend/template.yaml` 中配置了 `Events`
-```yaml
-HelloWorldFunction:
-  Events:
-    MyApi:
-      Type: Api
-      Properties:
-        RestApiId: !Ref MyApiGateway
-        Path: /my-endpoint
-        Method: GET
-```
-
-#### 陷阱 4: 前端 BASE URL 错误
-
-**问题**: API 调用 404
-
-**检查**: `frontend/src/api/generated/core/OpenAPI.ts`
-```typescript
-export const OpenAPI: OpenAPIConfig = {
-    BASE: 'https://ei7gdiuk16.execute-api.us-east-1.amazonaws.com/dev',  // 确保正确
-    // ...
-};
-```
-
-## 📚 参考资源
-
-### OpenAPI
-- [OpenAPI Specification 3.0](https://swagger.io/specification/)
-- [API Gateway OpenAPI Extensions](https://docs.aws.amazon.com/apigateway/latest/developerguide/api-gateway-swagger-extensions.html)
-
-### AWS SAM
-- [SAM Template Specification](https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/sam-specification.html)
-- [SAM CLI Command Reference](https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/serverless-sam-cli-command-reference.html)
-
-### 前端工具
-- [openapi-typescript-codegen](https://github.com/ferdikoomen/openapi-typescript-codegen)
-- [Swagger UI React](https://www.npmjs.com/package/swagger-ui-react)
-- [Vite](https://vitejs.dev/)
-- [React TypeScript Cheatsheet](https://react-typescript-cheatsheet.netlify.app/)
-
-### GitHub Actions
-- [GitHub Actions Workflow Syntax](https://docs.github.com/en/actions/reference/workflow-syntax-for-github-actions)
-- [peaceiris/actions-gh-pages](https://github.com/peaceiris/actions-gh-pages)
-
-## 🤖 AI Agent 提示词建议
-
-当使用 AI Agent 进行开发时，可以使用以下提示词模板：
-
-### 添加新 API
-```
-基于 qnyproj 项目结构，帮我添加一个新的 GET /products API 端点。
-要求：
-1. 在 openapi.template.yaml 中定义端点和 Product 数据模型
-2. 在 backend/hello-world/app.js 中实现路由处理
-3. 在 backend/template.yaml 中添加权限配置
-4. 提供前端 React 组件示例使用生成的客户端
-请遵循项目现有的代码风格和模式。
-```
-
-### 修改现有 API
-```
-我需要修改 /items API，添加分页功能。
-当前 openapi.template.yaml 中的定义是 [粘贴定义]
-请帮我：
-1. 更新 OpenAPI 定义，添加 query 参数 (page, limit)
-2. 修改 Lambda 函数处理分页逻辑
-3. 确保类型安全的前端调用方式
-```
-
-### 调试问题
-```
-我的 API 调用返回 "Internal server error"。
-- API 端点: GET /my-endpoint
-- Lambda 日志: [粘贴日志]
-- API Gateway 配置: [粘贴配置]
-请基于 qnyproj 项目的结构帮我诊断问题。
-```
-
-## 📝 版本历史
-
-### v1.0 - 2025-10-20
-
-**已部署功能**:
-- ✅ OpenAPI-First 开发流程
-- ✅ AWS Lambda + API Gateway (Edge-Optimized)
-- ✅ React + TypeScript 前端
-- ✅ Swagger UI 集成
-- ✅ Edge Probe 诊断工具
-- ✅ GitHub Actions CI/CD
-
-**API 端点**:
-- `GET /edge-probe` - CDN 诊断（返回 CloudFront 请求头）
-- `GET /items` - 示例数据列表
-
-**后续计划**:
-- [ ] Cognito 用户认证实现
-- [ ] 更多业务 API 端点
-- [ ] 前端状态管理优化
-- [ ] 单元测试覆盖率提升
-
----
-
-**文档维护**: 本文档应随项目演进持续更新。每次重大架构变更、新增核心功能时，请同步更新本文档。

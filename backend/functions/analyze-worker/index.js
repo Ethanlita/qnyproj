@@ -15,6 +15,7 @@ const Ajv = require('ajv');
 const { v4: uuid } = require('uuid');
 
 const QwenAdapter = require('../../lib/qwen-adapter');
+const BibleManager = require('../../lib/bible-manager');
 
 // AWS Clients
 const dynamodbClient = new DynamoDBClient({});
@@ -35,6 +36,8 @@ const ajv = new Ajv({
 const TABLE_NAME = process.env.TABLE_NAME;
 const ASSETS_BUCKET = process.env.ASSETS_BUCKET;
 const QWEN_SECRET_ARN = process.env.QWEN_SECRET_ARN;
+const BIBLES_TABLE_NAME = process.env.BIBLES_TABLE_NAME;
+const BIBLES_BUCKET = process.env.BIBLES_BUCKET || ASSETS_BUCKET;
 
 // Load schemas
 const storyboardSchema = require('../../schemas/storyboard.json');
@@ -42,6 +45,16 @@ const validateStoryboard = ajv.compile(storyboardSchema);
 
 // Cache for Qwen credentials
 let qwenAdapterCache = null;
+function getBibleManager() {
+  if (!BIBLES_TABLE_NAME) {
+    throw new Error('BIBLES_TABLE_NAME environment variable not set');
+  }
+  if (!BIBLES_BUCKET) {
+    throw new Error('BIBLES_BUCKET or ASSETS_BUCKET environment variable not set');
+  }
+  console.log('[AnalyzeWorker] BibleManager initialized');
+  return new BibleManager(docClient, s3Client, BIBLES_TABLE_NAME, BIBLES_BUCKET);
+}
 
 
 /**
@@ -316,9 +329,21 @@ exports.handler = async (event) => {
       messageBody = record.body;
     }
     
-    const { jobId, novelId, userId } = messageBody;
+    const { jobId, novelId, userId, chapterNumber: rawChapterNumber } = messageBody;
+    
+    const chapterNumber = (() => {
+      if (rawChapterNumber === undefined || rawChapterNumber === null) {
+        return 1;
+      }
+      const parsed = Number(rawChapterNumber);
+      if (!Number.isFinite(parsed) || parsed <= 0) {
+        return 1;
+      }
+      return Math.floor(parsed);
+    })();
     
     console.log(`[AnalyzeWorker] Received message for job ${jobId}`);
+    console.log(`[AnalyzeWorker] Target chapter: ${chapterNumber}`);
     
     try {
       // ✅ IDEMPOTENCY CHECK: Get current job status
@@ -395,19 +420,38 @@ exports.handler = async (event) => {
       // 2. Fetch novel text
       await updateJob(jobId, 'running', { percentage: 10, stage: 'fetching_text' });
       const { novel, text } = await getNovelText(novelId);
-      console.log(`[AnalyzeWorker] Novel text length: ${text.length} chars`);
+      let novelText = text;
+      if (!novelText && messageBody.text) {
+        console.warn('[AnalyzeWorker] Novel text missing from storage, falling back to message payload');
+        novelText = messageBody.text;
+      }
+      if (!novelText) {
+        throw new Error(`Novel ${novelId} text not found in storage or message`);
+      }
+      console.log(`[AnalyzeWorker] Novel text length: ${novelText.length} chars`);
       
       // 3. Initialize Qwen adapter
       await updateJob(jobId, 'running', { percentage: 20, stage: 'initializing_qwen' });
       const qwenAdapter = await getQwenAdapter();
       
+      // 3a. Load existing bible for continuity
+      await updateJob(jobId, 'running', { percentage: 25, stage: 'loading_bible' });
+      const bibleManager = getBibleManager();
+      const existingBible = await bibleManager.getBible(novelId);
+      const existingCharacterCount = Array.isArray(existingBible.characters) ? existingBible.characters.length : 0;
+      const existingSceneCount = Array.isArray(existingBible.scenes) ? existingBible.scenes.length : 0;
+      console.log(`[AnalyzeWorker] Bible loaded: version ${existingBible.version} (characters: ${existingCharacterCount}, scenes: ${existingSceneCount})`);
+      
       // 4. Generate storyboard
       await updateJob(jobId, 'running', { percentage: 30, stage: 'generating_storyboard' });
       const storyboard = await qwenAdapter.generateStoryboard({
-        text,
+        text: novelText,
         jsonSchema: storyboardSchema,
         strictMode: true,
-        maxChunkLength: 8000
+        maxChunkLength: 8000,
+        existingCharacters: existingBible.characters || [],
+        existingScenes: existingBible.scenes || [],
+        chapterNumber
       });
       
       console.log('[AnalyzeWorker] Storyboard generated');
@@ -441,6 +485,25 @@ exports.handler = async (event) => {
       }
       
       console.log('[AnalyzeWorker] ✅ Storyboard validated successfully');
+      
+      // 5a. Save updated bible
+      await updateJob(jobId, 'running', { percentage: 88, stage: 'saving_bible' });
+      const bibleResult = await bibleManager.saveBible(
+        novelId,
+        storyboard.characters || [],
+        storyboard.scenes || [],
+        chapterNumber
+      );
+      const updatedMetadata = bibleResult.metadata || {};
+      const totalCharacters = updatedMetadata.totalCharacters ?? (bibleResult.characters ? bibleResult.characters.length : 0);
+      const totalScenes = updatedMetadata.totalScenes ?? (bibleResult.scenes ? bibleResult.scenes.length : 0);
+      const storageLocation = updatedMetadata.storageLocation;
+
+      console.log(
+        `[AnalyzeWorker] Bible updated to version ${bibleResult.version} ` +
+        `(characters: ${totalCharacters}, scenes: ${totalScenes}, ` +
+        `storage: ${storageLocation ? 'S3' : 'DynamoDB'})`
+      );
       
       // 6. Write to DynamoDB
       await updateJob(jobId, 'running', { percentage: 90, stage: 'writing_database' });
@@ -476,3 +539,5 @@ exports.handler = async (event) => {
     body: JSON.stringify({ processed: event.Records.length })
   };
 };
+
+module.exports.lambdaHandler = exports.handler;

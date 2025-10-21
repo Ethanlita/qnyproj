@@ -232,6 +232,82 @@ paths:
         uri:
           Fn::Sub: arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${AnalyzeNovelFunction.Arn}/invocations
         payloadFormatVersion: "2.0"
+  /novels/{novelId}/bible:
+    parameters:
+      - name: novelId
+        in: path
+        required: true
+        schema:
+          type: string
+    get:
+      summary: 获取作品圣经
+      description: 返回指定作品最新版本的角色圣经和场景圣经
+      tags:
+        - Bible
+      security:
+        - CognitoAuthorizer: []
+      parameters:
+        - name: version
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+          description: 指定版本号，不提供时返回最新版本
+      responses:
+        "200":
+          description: 当前圣经信息
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Bible"
+        "400":
+          description: 请求参数错误
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: 未找到对应圣经
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+      x-amazon-apigateway-integration:
+        type: aws_proxy
+        httpMethod: POST
+        uri:
+          Fn::Sub: arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${BibleFunction.Arn}/invocations
+        payloadFormatVersion: "2.0"
+  /novels/{novelId}/bible/history:
+    parameters:
+      - name: novelId
+        in: path
+        required: true
+        schema:
+          type: string
+    get:
+      summary: 获取圣经版本历史
+      description: 返回指定作品的圣经版本列表
+      tags:
+        - Bible
+      security:
+        - CognitoAuthorizer: []
+      responses:
+        "200":
+          description: 圣经版本列表
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/BibleHistoryEntry"
+      x-amazon-apigateway-integration:
+        type: aws_proxy
+        httpMethod: POST
+        uri:
+          Fn::Sub: arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${BibleFunction.Arn}/invocations
+        payloadFormatVersion: "2.0"
   /characters/{charId}:
     parameters:
       - name: charId
@@ -1404,6 +1480,254 @@ components:
         createdAt:
           type: string
           format: date-time
+    Bible:
+      type: object
+      required:
+        - novelId
+        - version
+        - characters
+        - scenes
+        - metadata
+      properties:
+        novelId:
+          type: string
+          description: 作品 ID
+        version:
+          type: integer
+          minimum: 1
+          description: 圣经版本号
+        characters:
+          type: array
+          description: 角色圣经
+          items:
+            $ref: "#/components/schemas/BibleCharacter"
+        scenes:
+          type: array
+          description: 场景圣经
+          items:
+            $ref: "#/components/schemas/BibleScene"
+        metadata:
+          $ref: "#/components/schemas/BibleMetadata"
+    BibleCharacter:
+      type: object
+      required:
+        - name
+        - role
+      properties:
+        name:
+          type: string
+          description: 角色名称
+        role:
+          type: string
+          enum:
+            - protagonist
+            - antagonist
+            - supporting
+            - background
+        appearance:
+          $ref: "#/components/schemas/BibleCharacterAppearance"
+        personality:
+          type: array
+          items:
+            type: string
+        firstAppearance:
+          $ref: "#/components/schemas/BibleFirstAppearance"
+        referenceImages:
+          type: array
+          items:
+            type: string
+            format: uri
+    BibleCharacterAppearance:
+      type: object
+      properties:
+        gender:
+          type: string
+        age:
+          type: integer
+          minimum: 0
+        hairColor:
+          type: string
+        hairStyle:
+          type: string
+        eyeColor:
+          type: string
+        height:
+          type: string
+        build:
+          type: string
+        clothing:
+          type: array
+          items:
+            type: string
+        distinctiveFeatures:
+          type: array
+          items:
+            type: string
+    BibleFirstAppearance:
+      type: object
+      required:
+        - chapter
+      properties:
+        chapter:
+          type: integer
+          minimum: 1
+        page:
+          type: integer
+          minimum: 1
+        panelIndex:
+          type: integer
+          minimum: 0
+    BibleScene:
+      type: object
+      required:
+        - id
+        - name
+        - type
+        - description
+      properties:
+        id:
+          type: string
+          description: 场景 ID
+        name:
+          type: string
+        type:
+          type: string
+          enum:
+            - indoor
+            - outdoor
+            - indoor-outdoor
+            - natural
+            - urban
+            - rural
+            - fantasy
+            - abstract
+        description:
+          type: string
+        visualCharacteristics:
+          type: object
+          properties:
+            architecture:
+              type: string
+            keyLandmarks:
+              type: array
+              items:
+                type: string
+            colorScheme:
+              type: string
+            lighting:
+              type: object
+              properties:
+                naturalLight:
+                  type: string
+                artificialLight:
+                  type: string
+                lightSources:
+                  type: array
+                  items:
+                    type: string
+            atmosphere:
+              type: string
+            soundscape:
+              type: array
+              items:
+                type: string
+            textures:
+              type: array
+              items:
+                type: string
+        spatialLayout:
+          type: object
+          properties:
+            size:
+              type: string
+            layout:
+              type: string
+            keyAreas:
+              type: array
+              items:
+                type: object
+                properties:
+                  name:
+                    type: string
+                  position:
+                    type: string
+        timeVariations:
+          type: array
+          items:
+            type: object
+            properties:
+              timeOfDay:
+                type: string
+              description:
+                type: string
+        weatherVariations:
+          type: array
+          items:
+            type: object
+            properties:
+              weather:
+                type: string
+              description:
+                type: string
+        narrativeRole:
+          type: string
+        firstAppearance:
+          $ref: "#/components/schemas/BibleFirstAppearance"
+        referenceImages:
+          type: array
+          items:
+            type: string
+            format: uri
+    BibleMetadata:
+      type: object
+      required:
+        - createdAt
+        - updatedAt
+        - lastChapter
+        - totalCharacters
+        - totalScenes
+      properties:
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        lastChapter:
+          type: integer
+          minimum: 0
+        totalCharacters:
+          type: integer
+          minimum: 0
+        totalScenes:
+          type: integer
+          minimum: 0
+        storageLocation:
+          type: string
+          description: 如果圣经存储在 S3 中，则为 S3 URI
+    BibleHistoryEntry:
+      type: object
+      required:
+        - version
+        - updatedAt
+      properties:
+        version:
+          type: integer
+          minimum: 1
+        updatedAt:
+          type: string
+          format: date-time
+        lastChapter:
+          type: integer
+          minimum: 0
+        totalCharacters:
+          type: integer
+          minimum: 0
+        totalScenes:
+          type: integer
+          minimum: 0
+        storageLocation:
+          type: string
   securitySchemes:
     CognitoAuthorizer:
       type: openIdConnect
