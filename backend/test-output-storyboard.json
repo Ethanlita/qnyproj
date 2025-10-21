@@ -1,0 +1,516 @@
+{
+  "panels": [
+    {
+      "page": 1,
+      "index": 0,
+      "scene": "夕阳西下，金色的余晖洒在小镇石板路上。李明背着沉重的书包，独自走在回家的路上，街道两旁是低矮的砖房。",
+      "background": {
+        "sceneId": "ancient_town_main_street",
+        "setting": "古镇石板街道",
+        "timeOfDay": "dusk",
+        "weather": "clear",
+        "lighting": "natural",
+        "details": [
+          "远处山峦轮廓",
+          "街边悬挂的红灯笼",
+          "墙角爬山虎随风轻摆"
+        ]
+      },
+      "atmosphere": {
+        "mood": "peaceful",
+        "soundEffects": [
+          {
+            "sound": "脚步声",
+            "style": "subtle"
+          },
+          {
+            "sound": "远处狗吠",
+            "style": "faint"
+          }
+        ],
+        "particleEffects": [
+          "光尘在空气中飘浮",
+          "微风吹起落叶"
+        ]
+      },
+      "shotType": "wide",
+      "cameraAngle": "eye-level",
+      "composition": {
+        "focusPoint": "李明的背影",
+        "depthOfField": "deep",
+        "rule": "rule-of-thirds"
+      },
+      "artStyle": {
+        "genre": "seinen",
+        "lineWeight": "medium",
+        "shading": "screentone",
+        "colorPalette": "warm sunset tones with golden oranges and soft shadows"
+      },
+      "characters": [
+        {
+          "name": "李明",
+          "pose": "背着书包缓慢行走",
+          "expression": "neutral",
+          "position": "midground"
+        }
+      ],
+      "dialogue": [],
+      "visualPrompt": "A quiet small town street at dusk, golden sunlight on cobblestone pavement, teenage boy in school uniform walking alone with backpack, low brick houses on both sides, distant mountains, warm peaceful atmosphere, seinen manga style, screentone shading",
+      "narrativeFunction": "establishing-shot"
+    },
+    {
+      "page": 1,
+      "index": 1,
+      "scene": "李明停下脚步，微微侧身回头，脸上略带惊讶。身后的小红正挥手跑来，马尾辫随着步伐轻轻晃动。",
+      "background": {
+        "sceneId": "ancient_town_main_street",
+        "setting": "古镇主街中段",
+        "timeOfDay": "dusk",
+        "weather": "clear",
+        "lighting": "natural backlight",
+        "details": [
+          "石板路缝隙中的青苔",
+          "老槐树投下的斑驳树影",
+          "远处炊烟袅袅升起"
+        ]
+      },
+      "atmosphere": {
+        "mood": "warm",
+        "soundEffects": [
+          {
+            "sound": "呼唤声 '李明！'",
+            "style": "bold"
+          },
+          {
+            "sound": "轻快的脚步声",
+            "style": "moderate"
+          }
+        ],
+        "particleEffects": [
+          "发丝在晚风中飘动",
+          "地面扬起细微尘土"
+        ]
+      },
+      "shotType": "medium",
+      "cameraAngle": "over-shoulder",
+      "composition": {
+        "focusPoint": "小红奔跑的身影",
+        "depthOfField": "shallow",
+        "rule": "leading-lines"
+      },
+      "artStyle": {
+        "genre": "shoujo",
+        "lineWeight": "thin",
+        "shading": "soft-shading",
+        "colorPalette": "golden hour glow with soft pinks and yellows"
+      },
+      "characters": [
+        {
+          "name": "李明",
+          "pose": "转身回头",
+          "expression": "surprised",
+          "position": "foreground-left"
+        },
+        {
+          "name": "小红",
+          "pose": "挥手奔跑",
+          "expression": "happy",
+          "position": "midground-right"
+        }
+      ],
+      "dialogue": [
+        {
+          "speaker": "小红",
+          "text": "李明！",
+          "bubbleType": "speech",
+          "emotion": "excited"
+        }
+      ],
+      "visualPrompt": "Teenage girl in school uniform running down a cobblestone street at sunset, waving hand, ponytail flying, boy turning back in surprise, warm golden light, shoujo manga style with soft shading and emotional emphasis",
+      "narrativeFunction": "character-introduction"
+    },
+    {
+      "page": 1,
+      "index": 2,
+      "scene": "小红跑到李明身边，气喘吁吁地停下，脸上仍带着灿烂的笑容。她抬手指了指前方的路。",
+      "background": {
+        "sceneId": "ancient_town_main_street",
+        "setting": "古镇主街近桥头处",
+        "timeOfDay": "dusk",
+        "weather": "clear",
+        "lighting": "backlit by sunset",
+        "details": [
+          "石拱桥轮廓",
+          "屋檐下悬挂的风铃",
+          "窗台上的陶罐"
+        ]
+      },
+      "atmosphere": {
+        "mood": "friendly",
+        "soundEffects": [
+          {
+            "sound": "喘息声",
+            "style": "soft"
+          },
+          {
+            "sound": "风铃叮当",
+            "style": "subtle"
+          }
+        ],
+        "particleEffects": []
+      },
+      "shotType": "cowboy-shot",
+      "cameraAngle": "eye-level",
+      "composition": {
+        "focusPoint": "小红的手势",
+        "depthOfField": "normal",
+        "rule": "center-composition"
+      },
+      "artStyle": {
+        "genre": "shonen",
+        "lineWeight": "medium",
+        "shading": "crosshatch",
+        "colorPalette": "high-contrast orange and purple twilight"
+      },
+      "characters": [
+        {
+          "name": "小红",
+          "pose": "一手叉腰，一手指向前方",
+          "expression": "cheerful",
+          "position": "foreground"
+        },
+        {
+          "name": "李明",
+          "pose": "双手扶着书包带",
+          "expression": "calm",
+          "position": "beside"
+        }
+      ],
+      "dialogue": [
+        {
+          "speaker": "小红",
+          "text": "一起回家吗？",
+          "bubbleType": "speech",
+          "emotion": "friendly"
+        }
+      ],
+      "visualPrompt": "Two teenagers standing on a stone-paved street at dusk, one girl pointing forward with a smile, boy beside her with backpack, silhouetted against golden sky, traditional houses in background, shonen-style dynamic lines",
+      "narrativeFunction": "dialogue-initiation"
+    },
+    {
+      "page": 1,
+      "index": 3,
+      "scene": "李明微微低头，嘴角浮现一丝微笑，轻轻点头。阳光在他镜片上反射出细碎光芒。",
+      "background": {
+        "sceneId": "ancient_town_main_street",
+        "setting": "石拱桥附近",
+        "timeOfDay": "dusk",
+        "weather": "clear",
+        "lighting": "dramatic side-light",
+        "details": [
+          "桥栏雕刻花纹",
+          "水面倒映晚霞",
+          "岸边垂柳"
+        ]
+      },
+      "atmosphere": {
+        "mood": "hopeful",
+        "soundEffects": [],
+        "particleEffects": [
+          "glint of light on glasses"
+        ]
+      },
+      "shotType": "close-up",
+      "cameraAngle": "eye-level",
+      "composition": {
+        "focusPoint": "李明的眼睛 and glasses reflection",
+        "depthOfField": "shallow",
+        "rule": "golden-ratio"
+      },
+      "artStyle": {
+        "genre": "seinen",
+        "lineWeight": "fine",
+        "shading": "soft-shading",
+        "colorPalette": "warm amber highlights with cool blue shadows"
+      },
+      "characters": [
+        {
+          "name": "李明",
+          "pose": "微微低头",
+          "expression": "smiling slightly",
+          "position": "foreground"
+        }
+      ],
+      "dialogue": [
+        {
+          "speaker": "李明",
+          "text": "好啊。",
+          "bubbleType": "speech",
+          "emotion": "gentle"
+        }
+      ],
+      "visualPrompt": "Close-up of a teenage boy's face with glasses, slight smile, golden light reflecting on lenses, soft focus background showing bridge and river, emotional moment, seinen art style",
+      "narrativeFunction": "emotional-beat"
+    },
+    {
+      "page": 1,
+      "index": 4,
+      "scene": "两人并肩前行，身影被夕阳拉长，投影在古老的石板路上。他们的影子交错在一起。",
+      "background": {
+        "sceneId": "ancient_town_main_street",
+        "setting": "主街中段，通向镇外小路",
+        "timeOfDay": "dusk",
+        "weather": "clear",
+        "lighting": "low-angle natural light",
+        "details": [
+          "长长的影子",
+          "石板路的裂缝",
+          "两侧房屋剪影"
+        ]
+      },
+      "atmosphere": {
+        "mood": "nostalgic",
+        "soundEffects": [
+          {
+            "sound": "同步的脚步声",
+            "style": "rhythmic"
+          }
+        ],
+        "particleEffects": [
+          "尘埃在光束中飘舞"
+        ]
+      },
+      "shotType": "extreme-wide",
+      "cameraAngle": "low-angle",
+      "composition": {
+        "focusPoint": "the intertwined shadows",
+        "depthOfField": "deep",
+        "rule": "diagonal"
+      },
+      "artStyle": {
+        "genre": "realistic",
+        "lineWeight": "varied",
+        "shading": "cel-shading",
+        "colorPalette": "contrasting warm orange figures against cool blue ground"
+      },
+      "characters": [
+        {
+          "name": "李明",
+          "pose": "并肩行走",
+          "expression": "content",
+          "position": "left-shadow"
+        },
+        {
+          "name": "小红",
+          "pose": "轻松迈步",
+          "expression": "joyful",
+          "position": "right-shadow"
+        }
+      ],
+      "dialogue": [],
+      "visualPrompt": "Wide-angle view of two teenagers walking side by side on a cobblestone street at sunset, their long shadows stretching and merging on the ground, traditional houses in silhouette, nostalgic mood, realistic cel-shaded artwork",
+      "narrativeFunction": "symbolic-moment"
+    },
+    {
+      "page": 1,
+      "index": 5,
+      "scene": "镜头缓缓上移，展现整条古镇街道在暮色中的全景。炊烟从各家屋顶升起，融入橙紫色的天空。",
+      "background": {
+        "sceneId": "ancient_town_main_street",
+        "setting": "全镇俯瞰视角",
+        "timeOfDay": "dusk",
+        "weather": "clear",
+        "lighting": "ambient twilight",
+        "details": [
+          "连绵的瓦片屋顶",
+          "袅袅炊烟",
+          "天边渐变的晚霞"
+        ]
+      },
+      "atmosphere": {
+        "mood": "tranquil",
+        "soundEffects": [
+          {
+            "sound": "远处钟声",
+            "style": "echoing"
+          },
+          {
+            "sound": "归鸟鸣叫",
+            "style": "faint"
+          }
+        ],
+        "particleEffects": [
+          "rising smoke",
+          "last rays of sunlight"
+        ]
+      },
+      "shotType": "extreme-wide",
+      "cameraAngle": "birds-eye",
+      "composition": {
+        "focusPoint": "the entire town layout",
+        "depthOfField": "deep",
+        "rule": "leading-lines"
+      },
+      "artStyle": {
+        "genre": "josei",
+        "lineWeight": "delicate",
+        "shading": "soft-shading",
+        "colorPalette": "pastel purples, pinks, and golds blending into deep blue"
+      },
+      "characters": [],
+      "dialogue": [],
+      "visualPrompt": "Aerial view of an ancient town at twilight, winding cobblestone street through rows of traditional houses, smoke rising from chimneys, sky painted in pastel sunset colors, tranquil and poetic atmosphere, josei-style gentle art",
+      "narrativeFunction": "transition"
+    }
+  ],
+  "characters": [
+    {
+      "name": "李明",
+      "role": "protagonist",
+      "appearance": {
+        "gender": "male",
+        "age": 16,
+        "hairColor": "black",
+        "hairStyle": "short",
+        "eyeColor": "brown",
+        "height": "average",
+        "build": "slim",
+        "clothing": [
+          "校服",
+          "书包",
+          "圆框眼镜"
+        ],
+        "distinctiveFeatures": [
+          "戴眼镜",
+          "走路时微微低头"
+        ]
+      },
+      "personality": [
+        "内向",
+        "善良",
+        "细心"
+      ]
+    },
+    {
+      "name": "小红",
+      "role": "supporting",
+      "appearance": {
+        "gender": "female",
+        "age": 16,
+        "hairColor": "black",
+        "hairStyle": "ponytail",
+        "eyeColor": "dark brown",
+        "height": "slightly shorter than Li Ming",
+        "build": "slender",
+        "clothing": [
+          "校服",
+          "红色发绳"
+        ],
+        "distinctiveFeatures": [
+          "明亮的笑容",
+          "活泼的步伐"
+        ]
+      },
+      "personality": [
+        "开朗",
+        "热情",
+        "善解人意"
+      ]
+    }
+  ],
+  "scenes": [
+    {
+      "id": "ancient_town_main_street",
+      "name": "古镇主街",
+      "type": "outdoor",
+      "description": "小镇中心的古老石板路，长约200米，宽约6米，两旁是传统砖木结构的低矮房屋，承载着几代人的记忆与生活气息。",
+      "visualCharacteristics": {
+        "architecture": "低矮砖房，木门窗，瓦片屋顶，墙面有岁月痕迹和爬山虎",
+        "keyLandmarks": [
+          "石拱桥",
+          "百年老槐树",
+          "李家茶馆"
+        ],
+        "colorScheme": "暖色调为主：砖红、木褐、青灰，搭配自然植被绿意",
+        "lighting": {
+          "naturalLight": "abundant during day",
+          "artificialLight": "moderate",
+          "lightSources": [
+            "街灯",
+            "店铺灯光",
+            "窗户透出的光"
+          ]
+        },
+        "atmosphere": "宁静中带着烟火气，时间在这里流淌得很慢",
+        "soundscape": [
+          "脚步声",
+          "风铃",
+          "远处狗吠",
+          "茶馆里的谈笑",
+          "炊烟升起的声音"
+        ],
+        "textures": [
+          "粗糙石板路",
+          "斑驳墙面",
+          "光滑木门",
+          "瓦片屋顶"
+        ]
+      },
+      "spatialLayout": {
+        "size": "medium",
+        "layout": "狭长街道，南北走向，北端为老槐树，南侧有李家茶馆，中段横跨石拱桥",
+        "keyAreas": [
+          {
+            "name": "石拱桥",
+            "description": "街道中段的三孔石桥，连接东西两岸"
+          },
+          {
+            "name": "老槐树",
+            "description": "位于北端入口，树冠巨大，夏日遮阴"
+          },
+          {
+            "name": "李家茶馆",
+            "description": "南侧老字号，门前挂红灯笼"
+          }
+        ]
+      },
+      "timeVariations": [
+        {
+          "timeOfDay": "morning",
+          "description": "晨光透过薄雾，石板路泛着湿润光泽，早起居民扫地、开门",
+          "lightingChanges": "soft diffused light, long shadows"
+        },
+        {
+          "timeOfDay": "dusk",
+          "description": "夕阳将街道染成金色，街灯开始点亮，炊烟袅袅升起，温暖而宁静",
+          "lightingChanges": "warm golden hour lighting, strong backlight"
+        },
+        {
+          "timeOfDay": "night",
+          "description": "街灯昏黄，窗户透出暖光，街道安静，偶有夜归人",
+          "lightingChanges": "artificial lighting dominant, high contrast"
+        }
+      ],
+      "weatherVariations": [
+        {
+          "weather": "rainy",
+          "description": "雨水在石板路上形成小水洼，屋檐滴水声清脆，空气中弥漫着泥土香，行人撑伞匆匆",
+          "lightingChanges": "diffuse gray light, reflective surfaces"
+        },
+        {
+          "weather": "foggy",
+          "description": "晨雾笼罩街道，建筑若隐若现，声音变得朦胧",
+          "lightingChanges": "low visibility, soft edges"
+        }
+      ],
+      "narrativeRole": "primary-setting",
+      "firstAppearance": {
+        "chapter": 1,
+        "page": 1,
+        "panelIndex": 0
+      },
+      "referenceImages": []
+    }
+  ],
+  "totalPages": 1
+}
