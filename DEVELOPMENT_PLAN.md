@@ -1551,7 +1551,6 @@ exports.handler = async (event) => {
 - [ ] 实现图像生成 (`generate`)
 - [ ] 实现图像编辑 (`edit`)
 - [ ] 实现 GCS 上传 (`uploadToGCS`)
-- [ ] NSFW 检测处理
 - [ ] 超时与重试逻辑
 
 **产出**:
@@ -1729,8 +1728,7 @@ function buildPanelPrompt(panelData, characterRefs) {
 - [ ] 读取任务数据
 - [ ] 幂等性检查 (基于 `jobId:panelId:mode`)
 - [ ] 构建 prompt
-- [ ] 调用 Imagen 3
-- [ ] NSFW 检测
+- [ ] 调用 Gemini Imagen
 - [ ] 上传 S3
 - [ ] 事务性更新: PANEL_TASK 状态 + JOB 进度
 - [ ] 失败时指数退避重试
@@ -1826,7 +1824,6 @@ function buildPanelPrompt(panelData, characterRefs) {
 - [x] DynamoDB 节流 <5%
 
 **质量验收**:
-- [x] NSFW 检测有效 (测试用例验证)
 - [x] 幂等性保证 (重复触发不重复生成)
 - [x] 失败自动重试 ≤2 次
 
@@ -2019,7 +2016,6 @@ function buildPanelPrompt(panelData, characterRefs) {
   - [ ] `ImagenGenerateSuccess` / `ImagenGenerateFailure`
   - [ ] `PanelGenerateLatency`
   - [ ] `SchemaValidationFailure`
-  - [ ] `NSFWDetected`
 
 - [ ] 创建 CloudWatch Alarms:
   - [ ] 高错误率 (Errors > 10 in 5min)
@@ -2102,7 +2098,6 @@ function buildPanelPrompt(panelData, characterRefs) {
 
 - [x] Cognito JWT 校验生效
 - [x] S3 仅用预签名 URL (无公开对象)
-- [x] NSFW/涉敏拦截 (Imagen safetyAttributes)
 - [x] 最小权限策略 (Lambda IAM Role)
 
 ### 文档完整性

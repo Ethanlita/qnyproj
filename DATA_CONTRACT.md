@@ -1831,10 +1831,10 @@ const [response] = await client.predict(request);
 
 | 错误 | 处理方式 |
 |------|----------|
-| NSFW 检测 | `nsfw > 0.5` 时拒绝,返回错误提示用户修改 prompt |
 | API Quota Exceeded | 暂停 1 分钟后重试 |
 | Invalid Prompt | 返回错误,提示用户检查 prompt |
 | Timeout | 重试最多 2 次 (Imagen 生成较慢,timeout 设置为 60s) |
+| Network Error | 自动重试,失败后使用 placeholder 图片 |
 
 ---
 

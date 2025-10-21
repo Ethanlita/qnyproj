@@ -84,11 +84,10 @@
 - **中文优化**: 对中文小说理解能力强
 - **成本**: 相比 GPT-4 更低,适合批量处理
 
-**Imagen 3 (Google Vertex AI):**
+**Gemini Imagen (Google Vertex AI):**
 - **参考图一致性**: 支持多张参考图,角色一致性好
-- **编辑能力**: inpaint/outpaint/bg_swap 功能强大
-- **安全过滤**: 内置 NSFW 检测,符合合规要求
-- **分辨率**: 最高支持 4K 输出
+- **编辑能力**: 支持 edit_image 功能进行图像编辑
+- **分辨率**: 支持高清输出
 
 #### 认证: Cognito OIDC
 
@@ -458,11 +457,6 @@ exports.handler = async (event) => {
         numberOfImages: 1
       });
       
-      // 检查 NSFW
-      if (image.safetyAttributes?.scores?.nsfw > 0.5) {
-        throw new Error(`NSFW content detected in ${view} portrait`);
-      }
-      
       return {
         view,
         buffer: image.buffer,
@@ -724,12 +718,7 @@ exports.handler = async (event) => {
         negativePrompt: NEGATIVE_PROMPT
       });
       
-      // 4. NSFW 检测
-      if (image.safetyAttributes?.scores?.nsfw > 0.5) {
-        throw new Error('NSFW content detected');
-      }
-      
-      // 5. 上传 S3
+      // 4. 上传 S3
       const s3Key = `panels/${task.PK.replace('JOB#', '')}/${task.panelId}-${task.mode}.png`;
       await s3.send(new PutObjectCommand({
         Bucket: process.env.ASSETS_BUCKET,
@@ -1626,15 +1615,10 @@ Policies:
           - !Ref GcpServiceAccountSecret
 ```
 
-**NSFW 检测**:
-- Imagen API 返回 `safetyAttributes.scores.nsfw`
-- 阈值: `nsfw > 0.5` 时拒绝
-- 用户上传参考图: AWS Rekognition `DetectModerationLabels`
-
 **速率限制**:
 - API Gateway Usage Plans: 每用户 1000 req/day
 - Lambda 并发限制: 避免单用户占用所有资源
-- Qwen/Imagen API: 客户端侧 Token Bucket 限流
+- Qwen/Gemini API: 客户端侧 Token Bucket 限流
 
 **敏感数据**:
 - API Key 存储在 AWS Secrets Manager
@@ -1699,7 +1683,6 @@ await putMetric('PanelGenerateSuccess', 1);
 - `ImagenGenerateSuccess` / `ImagenGenerateFailure` - Imagen 生成成功率
 - `PanelGenerateLatency` - 面板生成平均耗时
 - `SchemaValidationFailure` - Schema 校验失败次数
-- `NSFWDetected` - NSFW 内容检测次数
 
 ### 7.3 告警
 
