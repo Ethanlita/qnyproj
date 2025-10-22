@@ -6,26 +6,31 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
+    "test": "vitest",
     "lint": "eslint .",
     "preview": "vite preview",
     "generate-api": "openapi --input ../openapi.yaml --output src/api/generated --client fetch --useOptions"
   },
   "dependencies": {
     "@reduxjs/toolkit": "^2.9.0",
+    
     "antd": "^5.27.5",
     "axios": "^1.12.2",
     "oidc-client-ts": "^3.3.0",
-    "react": "^19.1.1",
-    "react-dom": "^19.1.1",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
     "react-router-dom": "^7.9.4",
     "redux": "^5.0.1",
-    "swagger-ui-react": "^5.29.4"
+    "swagger-ui-react": "^5.29.5"
   },
   "devDependencies": {
     "@eslint/js": "^9.36.0",
+    "@testing-library/react": "^16.3.0",
+    "@testing-library/jest-dom": "^6.5.0",
+    "@testing-library/user-event": "^14.5.2",
     "@types/node": "^24.6.0",
-    "@types/react": "^19.1.16",
-    "@types/react-dom": "^19.1.9",
+    "@types/react": "^18.3.18",
+    "@types/react-dom": "^18.3.5",
     "@types/swagger-ui-react": "^5.18.0",
     "@vitejs/plugin-react": "^5.0.4",
     "eslint": "^9.36.0",
@@ -33,9 +38,11 @@
     "eslint-plugin-react-refresh": "^0.4.22",
     "form-data": "^4.0.4",
     "globals": "^16.4.0",
+    "jsdom": "^25.0.1",
     "openapi-typescript-codegen": "^0.29.0",
     "typescript": "~5.9.3",
     "typescript-eslint": "^8.45.0",
-    "vite": "^7.1.7"
+    "vite": "^7.1.7",
+    "vitest": "^1.6.0"
   }
 }

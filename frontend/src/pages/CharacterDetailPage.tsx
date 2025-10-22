@@ -5,19 +5,14 @@ import type { Character, CharacterConfiguration } from '../api/generated';
 import { useJobMonitor } from '../hooks/useJobMonitor';
 
 interface ConfigurationCardProps {
-  charId: string;
   config: CharacterConfiguration;
   onRefresh: (configId: string) => Promise<void>;
   onUpload: (configId: string, files: FileList | null) => Promise<void>;
   onStartPortraitJob: (configId: string) => Promise<string | null>;
 }
 
-function ConfigurationCard({
-  config,
-  onRefresh,
-  onUpload,
-  onStartPortraitJob
-}: ConfigurationCardProps) {
+function ConfigurationCard(props: ConfigurationCardProps) {
+  const { config, onRefresh, onUpload, onStartPortraitJob } = props;
   const [uploading, setUploading] = useState(false);
   const { jobState, start } = useJobMonitor({
     onCompleted: async () => {
@@ -36,9 +31,10 @@ function ConfigurationCard({
       await onUpload(config.id, files);
       await onRefresh(config.id);
       alert('参考图上传成功');
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error);
       console.error('[CharacterDetail] Upload failed:', error);
-      alert(`上传失败：${error?.message || '未知错误'}`);
+      alert(`上传失败：${message}`);
     } finally {
       setUploading(false);
     }
@@ -226,15 +222,6 @@ export function CharacterDetailPage() {
   const [newConfigName, setNewConfigName] = useState('');
   const [newConfigDesc, setNewConfigDesc] = useState('');
 
-  useEffect(() => {
-    if (!charId) {
-      setCharacter(null);
-      setConfigs([]);
-      return;
-    }
-    void loadCharacter();
-  }, [charId]);
-
   const loadCharacter = useCallback(async () => {
     if (!charId) return;
     try {
@@ -242,21 +229,31 @@ export function CharacterDetailPage() {
       const data = await CharactersService.getCharacters({ charId });
       setCharacter(data);
       setConfigs(data.configurations || []);
-    } catch (err: any) {
-      console.error('[CharacterDetail] Load failed:', err);
-      setError(err.message);
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error);
+      console.error('[CharacterDetail] Load failed:', error);
+      setError(message);
     } finally {
       setLoading(false);
     }
   }, [charId]);
+
+  useEffect(() => {
+    if (!charId) {
+      setCharacter(null);
+      setConfigs([]);
+      return;
+    }
+    void loadCharacter();
+  }, [charId, loadCharacter]);
 
   const refreshConfig = useCallback(async (configId: string) => {
     if (!charId) return;
     try {
       const updated = await CharactersService.getCharactersConfigurations1({ charId, configId });
       setConfigs((prev) => prev.map((cfg) => (cfg.id === updated.id ? updated : cfg)));
-    } catch (err) {
-      console.error('[CharacterDetail] Refresh config failed:', err);
+    } catch (error) {
+      console.error('[CharacterDetail] Refresh config failed:', error);
       await loadCharacter();
     }
   }, [charId, loadCharacter]);
@@ -283,9 +280,10 @@ export function CharacterDetailPage() {
       setNewConfigName('');
       setNewConfigDesc('');
       alert('配置创建成功!');
-    } catch (err: any) {
-      console.error('[CharacterDetail] Create config failed:', err);
-      alert(`创建失败: ${err.message}`);
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error);
+      console.error('[CharacterDetail] Create config failed:', error);
+      alert(`创建失败: ${message}`);
     } finally {
       setCreating(false);
     }
@@ -294,13 +292,12 @@ export function CharacterDetailPage() {
   const handleUploadReferences = useCallback(async (configId: string, files: FileList | null) => {
     if (!charId || !files || files.length === 0) return;
     const limitedFiles = Array.from(files).slice(0, 10);
-    const formData = new FormData();
-    limitedFiles.forEach((file) => formData.append('images', file));
-
     await CharactersService.postCharactersConfigurationsRefs({
       charId,
       configId,
-      formData: formData as any
+      formData: {
+        images: limitedFiles
+      }
     });
   }, [charId]);
 
@@ -312,9 +309,10 @@ export function CharacterDetailPage() {
         configId
       });
       return result.jobId || null;
-    } catch (err: any) {
-      console.error('[CharacterDetail] Start portrait job failed:', err);
-      alert(`生成失败: ${err.message}`);
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error);
+      console.error('[CharacterDetail] Start portrait job failed:', error);
+      alert(`生成失败: ${message}`);
       return null;
     }
   }, [charId]);
@@ -402,7 +400,6 @@ export function CharacterDetailPage() {
         {configs.map((config) => (
           <ConfigurationCard
             key={config.id}
-            charId={charId}
             config={config}
             onRefresh={refreshConfig}
             onUpload={handleUploadReferences}
@@ -419,4 +416,3 @@ export function CharacterDetailPage() {
     </div>
   );
 }
-

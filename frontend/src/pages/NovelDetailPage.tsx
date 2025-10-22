@@ -1,8 +1,10 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { NovelsService, StoryboardsService, JobsService } from '../api/generated';
-import type { Novel, Storyboard } from '../api/generated';
+import type { Novel, Storyboard, Panel as PanelModel } from '../api/generated';
 import { useNavigate, useParams, Link } from 'react-router-dom';
 import { useJobMonitor } from '../hooks/useJobMonitor';
+
+type PanelCharacters = NonNullable<NonNullable<PanelModel['content']>['characters']>;
 
 /**
  * 作品详情页
@@ -31,36 +33,36 @@ export function NovelDetailPage() {
     }
   });
 
-  useEffect(() => {
-    if (!novelId) {
-      setNovel(null);
-      setStoryboard(null);
-      return;
-    }
-    loadNovel();
-  }, [novelId]);
-
-  const loadNovel = async () => {
+  const loadNovel = useCallback(async () => {
     if (!novelId) return;
     try {
       setLoading(true);
       const data = await NovelsService.getNovels({ id: novelId });
       setNovel(data);
 
-      // 如果有分镜，加载分镜数据
       if (data.storyboardId) {
         const sb = await StoryboardsService.getStoryboards({ id: data.storyboardId });
         setStoryboard(sb);
       } else {
         setStoryboard(null);
       }
-    } catch (err: any) {
-      console.error('Failed to load novel:', err);
-      setError(err.message);
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error);
+      console.error('Failed to load novel:', error);
+      setError(message);
     } finally {
       setLoading(false);
     }
-  };
+  }, [novelId]);
+
+  useEffect(() => {
+    if (!novelId) {
+      setNovel(null);
+      setStoryboard(null);
+      return;
+    }
+    void loadNovel();
+  }, [novelId, loadNovel]);
 
   const handleAnalyze = async () => {
     if (!novelId) return;
@@ -92,9 +94,10 @@ export function NovelDetailPage() {
         }
       }, 2000);
 
-    } catch (err: any) {
-      console.error('Analyze failed:', err);
-      setError(err.message);
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error);
+      console.error('Analyze failed:', error);
+      setError(message);
       setAnalyzing(false);
     }
   };
@@ -118,10 +121,11 @@ export function NovelDetailPage() {
       } else {
         setPanelError('未返回任务ID');
       }
-    } catch (err: any) {
-      console.error('Generate panels failed:', err);
-      setPanelError(err.message);
-      alert(`面板生成失败：${err.message}`);
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error);
+      console.error('Generate panels failed:', error);
+      setPanelError(message);
+      alert(`面板生成失败：${message}`);
     }
   };
 
@@ -309,7 +313,12 @@ export function NovelDetailPage() {
             gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))',
             gap: '16px'
           }}>
-            {storyboard.panels.slice(0, 6).map((panel) => (
+            {storyboard.panels.slice(0, 6).map((panel) => {
+              const panelCharacters: PanelCharacters =
+                panel.content?.characters && panel.content.characters.length > 0
+                  ? panel.content.characters
+                  : ((panel as unknown as { characters?: PanelCharacters }).characters ?? ([] as PanelCharacters));
+              return (
               <div
                 key={panel.id}
                 style={{
@@ -342,12 +351,12 @@ export function NovelDetailPage() {
                 <p style={{ fontSize: '12px', color: '#666', margin: 0 }}>
                   {panel.content?.scene?.substring(0, 50)}...
                 </p>
-                {(panel as any).characters && (panel as any).characters.length > 0 && (
+                {panelCharacters.length > 0 && (
                   <div style={{ marginTop: '8px', display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
-                    {(panel as any).characters.map((ch: any) => (
+                    {panelCharacters.map((character) => (
                       <Link
-                        key={ch.charId}
-                        to={`/characters/${ch.charId}`}
+                        key={character?.charId || `${panel.id}-char`}
+                        to={character?.charId ? `/characters/${character.charId}` : '#'}
                         style={{
                           fontSize: '11px',
                           backgroundColor: '#eef',
@@ -357,13 +366,14 @@ export function NovelDetailPage() {
                           color: '#445'
                         }}
                       >
-                        {ch.name || ch.charId}
+                        {character?.name || character?.charId || '角色'}
                       </Link>
                     ))}
                   </div>
                 )}
               </div>
-            ))}
+            );
+            })}
           </div>
         </div>
       )}
