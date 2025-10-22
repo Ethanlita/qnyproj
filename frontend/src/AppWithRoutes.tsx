@@ -19,7 +19,7 @@ function AppWithRoutes() {
   const { isAuthenticated, login } = useAuth();
 
   return (
-    <BrowserRouter>
+    <BrowserRouter basename={import.meta.env.BASE_URL}>
       <div style={{ minHeight: '100vh', backgroundColor: '#f8f9fa' }}>
         {/* 导航栏 */}
         <nav style={{
