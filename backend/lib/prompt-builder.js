@@ -6,6 +6,59 @@
  * emphasise composition, camera work and style consistency.
  */
 
+// ⭐ 问题 3 修复: 视角映射表
+const VIEW_MAPPING = {
+  'front': 'front view, facing forward, centered composition',
+  'three-quarter': 'three-quarter view, slightly angled, dynamic perspective',
+  'side': 'side profile view, 90-degree angle, clear silhouette',
+  '45-degree': '45-degree angle view, diagonal composition',
+  'back': 'back view, rear angle, looking away',
+  'top-down': 'top-down view, birds eye perspective',
+  'low-angle': 'low-angle view, looking up, dramatic perspective'
+};
+
+// ⭐ 问题 3 修复: 姿态映射表
+const POSE_MAPPING = {
+  'standing': 'standing pose, upright posture, natural stance',
+  'sitting': 'sitting pose, relaxed position',
+  'walking': 'walking pose, mid-stride, dynamic movement',
+  'running': 'running pose, fast movement, action lines',
+  'action': 'dynamic action pose, intense movement',
+  'fighting': 'fighting pose, combat stance, aggressive posture',
+  'defensive': 'defensive pose, guarding position',
+  'casual': 'casual pose, relaxed body language',
+  'formal': 'formal pose, dignified posture',
+  'dramatic': 'dramatic pose with motion blur, cinematic composition'
+};
+
+// ⭐ 问题 3 修复: 风格映射表
+const STYLE_MAPPING = {
+  'anime': 'anime style, cel-shaded, vibrant colors, expressive features',
+  'realistic': 'photorealistic style, detailed rendering, natural lighting',
+  'chibi': 'chibi style, super deformed, cute proportions, simplified features',
+  'comic': 'comic book style, bold outlines, halftone shading, dynamic composition',
+  'manga': 'manga style, screentone shading, clean line art, high contrast',
+  'oil-painting': 'oil painting style, artistic brushstrokes, textured canvas feel',
+  'watercolor': 'watercolor style, soft edges, pastel colors, artistic wash effects',
+  'sketch': 'sketch style, rough lines, pencil texture, unfinished aesthetic',
+  'noir': 'noir style, high contrast black and white, dramatic shadows',
+  'retro': 'retro anime style, 80s-90s aesthetic, classic cel animation look'
+};
+
+// ⭐ 问题 3 修复: 表情映射表
+const EXPRESSION_MAPPING = {
+  'neutral': 'neutral expression, calm face',
+  'happy': 'happy expression, bright smile',
+  'sad': 'sad expression, downcast eyes',
+  'angry': 'angry expression, furrowed brows, intense glare',
+  'surprised': 'surprised expression, wide eyes, open mouth',
+  'scared': 'scared expression, fearful eyes',
+  'determined': 'determined expression, focused gaze, resolute face',
+  'confused': 'confused expression, tilted head, questioning look',
+  'embarrassed': 'embarrassed expression, blushing, averted eyes',
+  'smirking': 'smirking expression, slight grin, confident look'
+};
+
 const DEFAULT_NEGATIVE_PROMPT = [
   'nsfw',
   'blurry',
@@ -38,7 +91,9 @@ function appendIfDefined(parts, value) {
  *
  * @param {object} character - Character entity (including appearance/tags)
  * @param {object} [options]
- * @param {string} [options.view] - e.g. 'front', 'side'
+ * @param {string} [options.view] - e.g. 'front', 'side', 'three-quarter'
+ * @param {string} [options.pose] - e.g. 'standing', 'sitting', 'action'
+ * @param {string} [options.style] - e.g. 'anime', 'realistic', 'chibi'
  * @param {string} [options.mode] - 'preview' | 'hd'
  * @returns {{ text: string, negativePrompt: string }}
  */
@@ -49,11 +104,27 @@ function buildCharacterPrompt(character = {}, options = {}) {
     appearance = {},
     tags = []
   } = character;
-  const { view = 'front', mode = 'preview' } = options;
+  const { 
+    view = 'front', 
+    pose = 'standing',
+    style = 'manga',
+    mode = 'preview' 
+  } = options;
 
   const parts = ['ultra detailed manga character portrait'];
 
-  appendIfDefined(parts, `${view} view`);
+  // ⭐ 问题 3 修复: 使用视角映射
+  const viewText = VIEW_MAPPING[view] || `${view} view`;
+  appendIfDefined(parts, viewText);
+
+  // ⭐ 问题 3 修复: 使用姿态映射
+  const poseText = POSE_MAPPING[pose] || `${pose} pose`;
+  appendIfDefined(parts, poseText);
+
+  // ⭐ 问题 3 修复: 使用风格映射
+  const styleText = STYLE_MAPPING[style] || style;
+  appendIfDefined(parts, styleText);
+
   appendIfDefined(parts, `${mode === 'hd' ? 'high resolution' : 'illustrated'} render`);
   appendIfDefined(parts, role ? `${role} archetype` : null);
   appendIfDefined(parts, name);
@@ -166,12 +237,23 @@ function buildPanelPrompt(panel = {}, characterRefs = {}, options = {}) {
 function formatCharacterDescriptor({ name, pose, expression }) {
   const segments = [];
   appendIfDefined(segments, name);
-  appendIfDefined(segments, pose ? `${pose} pose` : null);
-  appendIfDefined(segments, expression ? `${expression} expression` : null);
+  
+  // ⭐ 问题 3 修复: 使用姿态映射
+  if (pose) {
+    const poseText = POSE_MAPPING[pose] || `${pose} pose`;
+    segments.push(poseText);
+  }
+  
+  // ⭐ 问题 3 修复: 使用表情映射
+  if (expression) {
+    const expressionText = EXPRESSION_MAPPING[expression] || `${expression} expression`;
+    segments.push(expressionText);
+  }
+  
   if (segments.length === 0) {
     return null;
   }
-  return segments.join(' ').trim();
+  return segments.join(', ').trim();
 }
 
 function collectReferenceUris(portraitsS3 = [], gcsPortraitUris = [], context = {}) {
@@ -203,6 +285,10 @@ function collectReferenceUris(portraitsS3 = [], gcsPortraitUris = [], context = 
 
 module.exports = {
   DEFAULT_NEGATIVE_PROMPT,
+  VIEW_MAPPING,
+  POSE_MAPPING,
+  STYLE_MAPPING,
+  EXPRESSION_MAPPING,
   buildCharacterPrompt,
   buildPanelPrompt
 };
