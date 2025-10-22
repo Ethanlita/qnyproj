@@ -10,6 +10,7 @@
 
 const { mockClient } = require('aws-sdk-client-mock');
 const { DynamoDBDocumentClient, GetCommand, UpdateCommand } = require('@aws-sdk/lib-dynamodb');
+const { SecretsManagerClient } = require('@aws-sdk/client-secrets-manager');
 
 jest.mock('../../lib/bible-manager');
 const BibleManager = require('../../lib/bible-manager');
@@ -17,19 +18,58 @@ const BibleManager = require('../../lib/bible-manager');
 // Mock DynamoDB
 const ddbMock = mockClient(DynamoDBDocumentClient);
 
+const defaultNovelItem = {
+  PK: 'NOVEL#test-novel',
+  SK: 'NOVEL#test-novel',
+  originalText: 'Stored novel text'
+};
+
+function mockJobAndNovel(jobItem, novelItem = defaultNovelItem) {
+  const getMock = ddbMock.on(GetCommand);
+  getMock.resolvesOnce({ Item: jobItem });
+  getMock.resolves({ Item: novelItem });
+}
+
 // Mock QwenAdapter
 jest.mock('../../lib/qwen-adapter', () => {
   return jest.fn().mockImplementation(() => ({
     generateStoryboard: jest.fn().mockResolvedValue({
-      panels: [{ page: 1, index: 0, scene: 'Test scene' }],
-      characters: [{ name: 'Test Character', role: 'protagonist' }],
+      panels: [{
+        page: 1,
+        index: 0,
+        scene: 'Test scene',
+        shotType: 'wide',
+        characters: [
+          {
+            charId: 'char-1',
+            name: 'Test Character',
+            pose: 'standing',
+            expression: 'determined'
+          }
+        ],
+        dialogue: []
+      }],
+      characters: [{ name: 'Test Character', role: 'protagonist', appearance: {} }],
       scenes: [{ id: 'test-scene', name: 'Test Scene' }],
       totalPages: 1
     })
   }));
 });
 
-const { lambdaHandler } = require('./index');
+process.env.QWEN_SECRET_ARN = process.env.QWEN_SECRET_ARN || 'arn:aws:secretsmanager:us-east-1:123456789012:secret:test';
+process.env.TABLE_NAME = process.env.TABLE_NAME || 'test-table';
+process.env.ASSETS_BUCKET = process.env.ASSETS_BUCKET || 'test-assets-bucket';
+process.env.BIBLES_TABLE_NAME = process.env.BIBLES_TABLE_NAME || 'test-bibles-table';
+process.env.BIBLES_BUCKET = process.env.BIBLES_BUCKET || 'test-bibles-bucket';
+jest.spyOn(SecretsManagerClient.prototype, 'send').mockResolvedValue({
+  SecretString: JSON.stringify({
+    QWEN_API_KEY: 'mock-key',
+    QWEN_ENDPOINT: 'https://dashscope-intl.aliyuncs.com/compatible-mode/v1',
+    QWEN_MODEL: 'qwen-plus'
+  })
+});
+
+const { handler: lambdaHandler } = require('./index');
 
 describe('AnalyzeWorker Lambda', () => {
   let bibleManagerMocks;
@@ -40,6 +80,7 @@ describe('AnalyzeWorker Lambda', () => {
     process.env.ASSETS_BUCKET = 'test-assets-bucket';
     process.env.BIBLES_TABLE_NAME = 'test-bibles-table';
     process.env.BIBLES_BUCKET = 'test-bibles-bucket';
+    SecretsManagerClient.prototype.send.mockClear();
     
     bibleManagerMocks = {
       getBible: jest.fn().mockResolvedValue({
@@ -77,12 +118,19 @@ describe('AnalyzeWorker Lambda', () => {
   describe('Message Processing', () => {
     it('should process valid SQS message', async () => {
       // Setup mocks
-      ddbMock.on(GetCommand).resolves({
+      ddbMock.on(GetCommand).resolvesOnce({
         Item: {
           jobId: 'test-job-1',
           status: 'queued',
           novelId: 'test-novel',
           userId: 'test-user'
+        }
+      });
+      ddbMock.on(GetCommand).resolves({
+        Item: {
+          PK: 'NOVEL#test-novel',
+          SK: 'NOVEL#test-novel',
+          originalText: 'Stored novel text'
         }
       });
 
@@ -164,13 +212,11 @@ describe('AnalyzeWorker Lambda', () => {
 
   describe('Idempotency', () => {
     it('should skip already running job', async () => {
-      ddbMock.on(GetCommand).resolves({
-        Item: {
-          jobId: 'test-job-2',
-          status: 'running', // Already running
-          novelId: 'test-novel',
-          userId: 'test-user'
-        }
+      mockJobAndNovel({
+        jobId: 'test-job-2',
+        status: 'running', // Already running
+        novelId: 'test-novel',
+        userId: 'test-user'
       });
 
       const event = {
@@ -228,12 +274,19 @@ describe('AnalyzeWorker Lambda', () => {
     });
 
     it('should skip failed job', async () => {
-      ddbMock.on(GetCommand).resolves({
+      ddbMock.on(GetCommand).resolvesOnce({
         Item: {
           jobId: 'test-job-4',
           status: 'failed',
           novelId: 'test-novel',
           userId: 'test-user'
+        }
+      });
+      ddbMock.on(GetCommand).resolves({
+        Item: {
+          PK: 'NOVEL#test-novel',
+          SK: 'NOVEL#test-novel',
+          originalText: 'Stored novel text'
         }
       });
 
@@ -259,13 +312,11 @@ describe('AnalyzeWorker Lambda', () => {
     });
 
     it('should process job with queued status', async () => {
-      ddbMock.on(GetCommand).resolves({
-        Item: {
-          jobId: 'test-job-5',
-          status: 'queued', // Should process
-          novelId: 'test-novel',
-          userId: 'test-user'
-        }
+      mockJobAndNovel({
+        jobId: 'test-job-5',
+        status: 'queued', // Should process
+        novelId: 'test-novel',
+        userId: 'test-user'
       });
 
       ddbMock.on(UpdateCommand).resolves({});
@@ -357,21 +408,37 @@ describe('AnalyzeWorker Lambda', () => {
       expect(result.batchItemFailures).toHaveLength(1);
       
       const updateCalls = ddbMock.commandCalls(UpdateCommand);
-      const failedUpdate = updateCalls.find(call => 
-        call.args[0].input.UpdateExpression.includes('failed')
-      );
+      const failedUpdate = updateCalls.find(call => {
+        const values = call.args[0].input.ExpressionAttributeValues || {};
+        return values[':status'] === 'failed';
+      });
       expect(failedUpdate).toBeDefined();
     });
   });
 
   describe('Batch Processing', () => {
     it('should process multiple messages', async () => {
-      ddbMock.on(GetCommand).resolves({
+      ddbMock.on(GetCommand).resolvesOnce({
         Item: {
+          jobId: 'job-1',
           status: 'queued',
           novelId: 'test-novel',
           userId: 'test-user'
         }
+      });
+      ddbMock.on(GetCommand).resolvesOnce({
+        Item: defaultNovelItem
+      });
+      ddbMock.on(GetCommand).resolvesOnce({
+        Item: {
+          jobId: 'job-2',
+          status: 'queued',
+          novelId: 'test-novel',
+          userId: 'test-user'
+        }
+      });
+      ddbMock.on(GetCommand).resolves({
+        Item: defaultNovelItem
       });
 
       ddbMock.on(UpdateCommand).resolves({});
@@ -403,8 +470,9 @@ describe('AnalyzeWorker Lambda', () => {
     });
 
     it('should handle partial batch failure', async () => {
-      ddbMock.on(GetCommand).callsFake((params) => {
-        if (params.Key.PK === 'JOB#job-good') {
+      ddbMock.on(GetCommand).callsFake((command) => {
+        const { Key } = command.input;
+        if (Key.PK === 'JOB#job-good') {
           return Promise.resolve({
             Item: {
               jobId: 'job-good',
@@ -413,6 +481,9 @@ describe('AnalyzeWorker Lambda', () => {
               userId: 'test-user'
             }
           });
+        }
+        if (Key.PK === 'NOVEL#test-novel') {
+          return Promise.resolve({ Item: defaultNovelItem });
         }
         return Promise.reject(new Error('DynamoDB error'));
       });
@@ -482,7 +553,7 @@ describe('AnalyzeWorker Lambda', () => {
       
       // First update should set status to running
       const runningUpdate = updateCalls[0];
-      expect(runningUpdate.args[0].input.UpdateExpression).toContain('status = :running');
+      expect(runningUpdate.args[0].input.UpdateExpression).toContain('#status = :running');
       expect(runningUpdate.args[0].input.ExpressionAttributeValues[':running']).toBe('running');
     });
 
@@ -519,7 +590,8 @@ describe('AnalyzeWorker Lambda', () => {
       
       // Last update should set status to completed
       const completedUpdate = updateCalls[updateCalls.length - 1];
-      expect(completedUpdate.args[0].input.UpdateExpression).toContain('status = :completed');
+      expect(completedUpdate.args[0].input.UpdateExpression).toContain('#status = :status');
+      expect(completedUpdate.args[0].input.ExpressionAttributeValues[':status']).toBe('completed');
     });
   });
 });

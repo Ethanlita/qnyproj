@@ -2230,16 +2230,24 @@ Resources:
       Runtime: nodejs22.x
       Architectures:
         - x86_64
+      Timeout: 300  # 5 minutes for Gemini Imagen API
+      MemorySize: 1024  # Increased memory for image processing
       Environment:
         Variables:
           TABLE_NAME: !Ref ComicDataTable
           ASSETS_BUCKET: !Ref AssetsBucket
           ENVIRONMENT: !Ref Environment
+          QWEN_SECRET_ARN: !Ref QwenApiKeySecret
       Policies:
         - DynamoDBCrudPolicy:
             TableName: !Ref ComicDataTable
         - S3CrudPolicy:
             BucketName: !Ref AssetsBucket
+        - Statement:
+            - Effect: Allow
+              Action:
+                - secretsmanager:GetSecretValue
+              Resource: !Ref QwenApiKeySecret
       Events:
         GeneratePortraitFunctionEvent1:
           Type: Api
@@ -2289,6 +2297,34 @@ Resources:
           TABLE_NAME: !Ref ComicDataTable
           ASSETS_BUCKET: !Ref AssetsBucket
           ENVIRONMENT: !Ref Environment
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref ComicDataTable
+        - S3CrudPolicy:
+            BucketName: !Ref AssetsBucket
+      Events:
+        GeneratePanelsFunctionEvent1:
+          Type: Api
+          Properties:
+            RestApiId:
+              Ref: MyApiGateway
+            Path: /storyboards/{id}/generate
+            Method: POST
+  PanelWorkerFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: .
+      Handler: functions/panel-worker/index.handler
+      Runtime: nodejs22.x
+      Architectures:
+        - x86_64
+      Timeout: 900
+      MemorySize: 2048
+      Environment:
+        Variables:
+          TABLE_NAME: !Ref ComicDataTable
+          ASSETS_BUCKET: !Ref AssetsBucket
+          ENVIRONMENT: !Ref Environment
           QWEN_SECRET_ARN: !Ref QwenApiKeySecret
       Policies:
         - DynamoDBCrudPolicy:
@@ -2300,14 +2336,24 @@ Resources:
               Action:
                 - secretsmanager:GetSecretValue
               Resource: !Ref QwenApiKeySecret
+        - Statement:
+            - Effect: Allow
+              Action:
+                - dynamodb:DescribeStream
+                - dynamodb:GetRecords
+                - dynamodb:GetShardIterator
+                - dynamodb:ListStreams
+              Resource: !GetAtt ComicDataTable.StreamArn
       Events:
-        GeneratePanelsFunctionEvent1:
-          Type: Api
+        PanelTaskStream:
+          Type: DynamoDB
           Properties:
-            RestApiId:
-              Ref: MyApiGateway
-            Path: /storyboards/{id}/generate
-            Method: POST
+            Stream: !GetAtt ComicDataTable.StreamArn
+            StartingPosition: LATEST
+            BatchSize: 10
+            FilterCriteria:
+              Filters:
+                - Pattern: '{"eventName": ["INSERT"], "dynamodb": {"NewImage": {"SK": {"S": [{"prefix": "PANEL_TASK#"}]}}}}'
   PanelsFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -2342,16 +2388,24 @@ Resources:
       Runtime: nodejs22.x
       Architectures:
         - x86_64
+      Timeout: 300  # 5 minutes for Gemini Imagen API editing
+      MemorySize: 1024  # Increased memory for image processing
       Environment:
         Variables:
           TABLE_NAME: !Ref ComicDataTable
           ASSETS_BUCKET: !Ref AssetsBucket
           ENVIRONMENT: !Ref Environment
+          QWEN_SECRET_ARN: !Ref QwenApiKeySecret
       Policies:
         - DynamoDBCrudPolicy:
             TableName: !Ref ComicDataTable
         - S3CrudPolicy:
             BucketName: !Ref AssetsBucket
+        - Statement:
+            - Effect: Allow
+              Action:
+                - secretsmanager:GetSecretValue
+              Resource: !Ref QwenApiKeySecret
       Events:
         EditPanelFunctionEvent1:
           Type: Api

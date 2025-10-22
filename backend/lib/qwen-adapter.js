@@ -463,7 +463,8 @@ class QwenAdapter {
         this.log('─'.repeat(60));
         
         // Summary for quick identification
-        console.log(`✅ [QwenAdapter] Qwen API call succeeded in ${elapsedMs}ms (${response.usage.total_tokens} tokens)`);
+        const totalTokens = response.usage?.total_tokens ?? 'unknown';
+        console.log(`✅ [QwenAdapter] Qwen API call succeeded in ${elapsedMs}ms (${totalTokens} tokens)`);
         
         return parsed;
         

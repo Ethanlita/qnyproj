@@ -2,15 +2,22 @@ import { BrowserRouter, Routes, Route, Link } from 'react-router-dom';
 import { NovelUploadPage } from './pages/NovelUploadPage';
 import { NovelDetailPage } from './pages/NovelDetailPage';
 import { CharacterDetailPage } from './pages/CharacterDetailPage';
+import { LoginPage } from './pages/LoginPage';
+import { CallbackPage } from './pages/CallbackPage';
 import { SwaggerDocs } from './SwaggerDocs';
 import { ApiTest } from './ApiTest';
 import { EdgeProbeDemo } from './EdgeProbeDemo';
+import { UserInfo } from './components/UserInfo';
+import { ProtectedRoute } from './components/ProtectedRoute';
+import { useAuth } from './auth/AuthContext';
 import './App.css';
 
 /**
  * 带路由的主应用组件
  */
 function AppWithRoutes() {
+  const { isAuthenticated, login } = useAuth();
+
   return (
     <BrowserRouter>
       <div style={{ minHeight: '100vh', backgroundColor: '#f8f9fa' }}>
@@ -51,17 +58,67 @@ function AppWithRoutes() {
                 🌐 CDN 探测
               </Link>
             </div>
+
+            {/* 用户信息/登录按钮 */}
+            <div>
+              {isAuthenticated ? (
+                <UserInfo />
+              ) : (
+                <button
+                  onClick={() => login()}
+                  style={{
+                    padding: '8px 16px',
+                    backgroundColor: '#667eea',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '4px',
+                    fontSize: '14px',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s'
+                  }}
+                  onMouseOver={(e) => {
+                    e.currentTarget.style.backgroundColor = '#5568d3';
+                  }}
+                  onMouseOut={(e) => {
+                    e.currentTarget.style.backgroundColor = '#667eea';
+                  }}
+                >
+                  🔐 登录
+                </button>
+              )}
+            </div>
           </div>
         </nav>
 
         {/* 路由内容 */}
         <Routes>
-          <Route path="/" element={<NovelUploadPage />} />
-          <Route path="/novels/:id" element={<NovelDetailPage />} />
-          <Route path="/characters/:charId" element={<CharacterDetailPage />} />
+          {/* 公开路由 */}
+          <Route path="/login" element={<LoginPage />} />
+          <Route path="/callback" element={<CallbackPage />} />
           <Route path="/api-docs" element={<SwaggerDocs />} />
-          <Route path="/api-test" element={<ApiTest />} />
           <Route path="/edge-probe" element={<EdgeProbeDemo />} />
+          
+          {/* 受保护的路由 - 需要登录 */}
+          <Route path="/" element={
+            <ProtectedRoute>
+              <NovelUploadPage />
+            </ProtectedRoute>
+          } />
+          <Route path="/novels/:id" element={
+            <ProtectedRoute>
+              <NovelDetailPage />
+            </ProtectedRoute>
+          } />
+          <Route path="/characters/:charId" element={
+            <ProtectedRoute>
+              <CharacterDetailPage />
+            </ProtectedRoute>
+          } />
+          <Route path="/api-test" element={
+            <ProtectedRoute>
+              <ApiTest />
+            </ProtectedRoute>
+          } />
         </Routes>
       </div>
     </BrowserRouter>

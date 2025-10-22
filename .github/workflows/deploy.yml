@@ -97,6 +97,11 @@ jobs:
           DASHSCOPE_API_KEY=${{ secrets.QWEN_API_KEY }}
           QWEN_ENDPOINT=${{ secrets.QWEN_ENDPOINT || 'https://dashscope-intl.aliyuncs.com/compatible-mode/v1' }}
           QWEN_MODEL=${{ secrets.QWEN_MODEL || 'qwen-plus' }}
+          GEMINI_API_KEY=${{ secrets.GEMINI_API_KEY }}
+          GEMINI_PROJECT_ID=${{ secrets.GEMINI_PROJECT_ID }}
+          GEMINI_MODEL=${{ secrets.GEMINI_MODEL || 'imagen-4.0-fast-generate-001' }}
+          GEMINI_LOCATION=${{ secrets.GEMINI_LOCATION || 'us-central1' }}
+          COGNITO_USER_POOL_ID=${{ secrets.COGNITO_USER_POOL_ID }}
           AWS_REGION=${{ secrets.AWS_REGION }}
           EOF
           
@@ -172,11 +177,21 @@ jobs:
           echo "   Region: ${{ secrets.AWS_REGION }}"
           echo ""
           
+          # Create temporary .env with COGNITO_USER_POOL_ID for parameter passing
+          cat > .env << EOF
+          COGNITO_USER_POOL_ID=${{ secrets.COGNITO_USER_POOL_ID }}
+          EOF
+          
+          # Load and deploy with parameter
+          source <(grep COGNITO_USER_POOL_ID .env)
+          
           sam deploy \
             --no-confirm-changeset \
             --no-fail-on-empty-changeset \
-            --parameter-overrides \
-              "MyCognitoUserPoolId=us-east-1_Tx45oEoJx"
+            --parameter-overrides "MyCognitoUserPoolId=$COGNITO_USER_POOL_ID"
+          
+          # Clean up
+          rm .env
           
           echo ""
           echo "✅ Deployment completed successfully"
@@ -269,7 +284,14 @@ jobs:
         run: npm run build:frontend
         env:
           NODE_ENV: production
+          # API 配置
           VITE_API_BASE_URL: https://ei7gdiuk16.execute-api.us-east-1.amazonaws.com/dev
+          # Cognito 配置 - 从 GitHub Secrets 注入
+          VITE_COGNITO_USER_POOL_ID: ${{ secrets.COGNITO_USER_POOL_ID }}
+          VITE_COGNITO_CLIENT_ID: ${{ secrets.COGNITO_CLIENT_ID }}
+          VITE_AWS_REGION: ${{ secrets.AWS_REGION }}
+          # 生产环境回调 URL（会自动使用 BASE_URL）
+          # 实际回调地址: https://ethanlita.github.io/qnyproj/callback
 
       - name: Deploy to GitHub Pages (gh-pages branch)
         uses: peaceiris/actions-gh-pages@v4

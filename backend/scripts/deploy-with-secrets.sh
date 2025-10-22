@@ -46,6 +46,20 @@ fi
 
 cd "$BACKEND_DIR"
 
+# Load environment variables from .env
+echo "📋 Loading environment variables from .env..."
+export $(grep -v '^#' .env | xargs)
+
+# Validate required Cognito variables
+if [ -z "$COGNITO_USER_POOL_ID" ]; then
+  echo "❌ Error: COGNITO_USER_POOL_ID not found in .env"
+  echo "Please add: COGNITO_USER_POOL_ID=us-east-1_xxxxxxxxx"
+  exit 1
+fi
+
+echo "   ✅ COGNITO_USER_POOL_ID: $COGNITO_USER_POOL_ID"
+echo ""
+
 if [ "$FIRST_DEPLOY" = true ]; then
   echo "📝 First deployment mode:"
   echo "   1. Deploy stack with placeholder secrets"
@@ -59,7 +73,7 @@ if [ "$FIRST_DEPLOY" = true ]; then
   
   # Step 2: Deploy with guided mode
   echo "2️⃣  Deploying to AWS (guided mode)..."
-  sam deploy --guided
+  sam deploy --guided --parameter-overrides "MyCognitoUserPoolId=$COGNITO_USER_POOL_ID"
   echo ""
   
   # Step 3: Sync secrets
@@ -79,7 +93,7 @@ else
   
   # Step 3: Deploy to AWS
   echo "3️⃣  Deploying to AWS..."
-  sam deploy --no-confirm-changeset --no-fail-on-empty-changeset
+  sam deploy --no-confirm-changeset --no-fail-on-empty-changeset --parameter-overrides "MyCognitoUserPoolId=$COGNITO_USER_POOL_ID"
   echo ""
 fi
 

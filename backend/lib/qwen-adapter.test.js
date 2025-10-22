@@ -52,8 +52,16 @@ class MockOpenAIClient {
         message: {
           content: JSON.stringify({ panels: [], characters: [] })
         }
-      }]
+      }],
+      usage: {
+        total_tokens: 0
+      }
     };
+    if (!response.usage) {
+      response.usage = { total_tokens: 0 };
+    } else if (typeof response.usage.total_tokens === 'undefined') {
+      response.usage.total_tokens = 0;
+    }
     
     return response;
   }

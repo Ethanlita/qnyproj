@@ -187,13 +187,13 @@ async function updateJob(jobId, status, progress = {}, errorMessage = null) {
 async function writeStoryboardToDynamoDB(novelId, userId, storyboard) {
   const storyboardId = uuid();
   const timestamp = new Date().toISOString();
-  
+  const timestampNumber = Date.now();
+
   console.log('[AnalyzeWorker] Writing storyboard to DynamoDB');
   console.log(`  - Panels: ${storyboard.panels.length}`);
   console.log(`  - Characters: ${storyboard.characters.length}`);
   console.log(`  - Scenes: ${storyboard.scenes ? storyboard.scenes.length : 0}`);
-  
-  // 1. Create Storyboard item
+
   const storyboardItem = {
     PK: `NOVEL#${novelId}`,
     SK: `STORYBOARD#${storyboardId}`,
@@ -208,109 +208,256 @@ async function writeStoryboardToDynamoDB(novelId, userId, storyboard) {
     createdAt: timestamp,
     updatedAt: timestamp,
     GSI1PK: `USER#${userId}`,
-    GSI1SK: `STORYBOARD#${timestamp}`
+    GSI1SK: `STORYBOARD#${timestampNumber}`
   };
-  
-  await docClient.send(new PutCommand({
-    TableName: TABLE_NAME,
-    Item: storyboardItem
-  }));
-  
-  console.log(`[AnalyzeWorker] Storyboard ${storyboardId} created`);
-  
-  // 2. Batch write Panels (max 25 items per batch)
-  const panelItems = storyboard.panels.map((panel, idx) => ({
-    PK: `STORYBOARD#${storyboardId}`,
-    SK: `PANEL#${String(idx).padStart(4, '0')}`,
-    id: uuid(),
+
+  await docClient.send(
+    new PutCommand({
+      TableName: TABLE_NAME,
+      Item: storyboardItem
+    })
+  );
+
+  const { items: baseCharacterItems, lookup: characterLookup } = buildCharacterItems(
+    storyboard.characters || [],
+    novelId,
+    storyboardId,
+    timestamp
+  );
+
+  const { items: panelItems, additionalCharacters } = buildPanelItems(
+    storyboard.panels || [],
     storyboardId,
     novelId,
-    ...panel,
-    status: 'pending',
-    createdAt: timestamp,
-    updatedAt: timestamp
-  }));
-  
-  // Write panels in batches of 25
+    timestamp,
+    characterLookup
+  );
+
+  const allCharacterItems = mergeCharacterItems(baseCharacterItems, additionalCharacters);
+
   for (let i = 0; i < panelItems.length; i += 25) {
     const batch = panelItems.slice(i, i + 25);
-    await docClient.send(new BatchWriteCommand({
-      RequestItems: {
-        [TABLE_NAME]: batch.map(item => ({
-          PutRequest: { Item: item }
-        }))
-      }
-    }));
+    await docClient.send(
+      new BatchWriteCommand({
+        RequestItems: {
+          [TABLE_NAME]: batch.map((item) => ({
+            PutRequest: { Item: item }
+          }))
+        }
+      })
+    );
     console.log(`[AnalyzeWorker] Wrote panels ${i + 1}-${Math.min(i + 25, panelItems.length)}`);
   }
-  
-  // 3. Write Characters
-  const characterItems = storyboard.characters.map(char => ({
-    PK: `NOVEL#${novelId}`,
-    SK: `CHARACTER#${char.name}`,
-    id: uuid(),
-    novelId,
-    storyboardId,
-    ...char,
-    createdAt: timestamp,
-    updatedAt: timestamp
-  }));
-  
-  for (let i = 0; i < characterItems.length; i += 25) {
-    const batch = characterItems.slice(i, i + 25);
-    await docClient.send(new BatchWriteCommand({
-      RequestItems: {
-        [TABLE_NAME]: batch.map(item => ({
-          PutRequest: { Item: item }
-        }))
-      }
-    }));
-    console.log(`[AnalyzeWorker] Wrote characters ${i + 1}-${Math.min(i + 25, characterItems.length)}`);
+
+  for (let i = 0; i < allCharacterItems.length; i += 25) {
+    const batch = allCharacterItems.slice(i, i + 25);
+    await docClient.send(
+      new BatchWriteCommand({
+        RequestItems: {
+          [TABLE_NAME]: batch.map((item) => ({
+            PutRequest: { Item: item }
+          }))
+        }
+      })
+    );
+    console.log(`[AnalyzeWorker] Wrote characters ${i + 1}-${Math.min(i + 25, allCharacterItems.length)}`);
   }
-  
-  // 4. Write Scenes (if present)
+
   if (storyboard.scenes && storyboard.scenes.length > 0) {
-    const sceneItems = storyboard.scenes.map(scene => ({
+    const sceneItems = storyboard.scenes.map((scene) => ({
       PK: `NOVEL#${novelId}`,
-      SK: `SCENE#${scene.id}`,
-      id: scene.id,
+      SK: `SCENE#${scene.id || uuid()}`,
+      id: scene.id || uuid(),
       novelId,
       storyboardId,
       ...scene,
       createdAt: timestamp,
       updatedAt: timestamp
     }));
-    
+
     for (let i = 0; i < sceneItems.length; i += 25) {
       const batch = sceneItems.slice(i, i + 25);
-      await docClient.send(new BatchWriteCommand({
-        RequestItems: {
-          [TABLE_NAME]: batch.map(item => ({
-            PutRequest: { Item: item }
-          }))
-        }
-      }));
+      await docClient.send(
+        new BatchWriteCommand({
+          RequestItems: {
+            [TABLE_NAME]: batch.map((item) => ({
+              PutRequest: { Item: item }
+            }))
+          }
+        })
+      );
       console.log(`[AnalyzeWorker] Wrote scenes ${i + 1}-${Math.min(i + 25, sceneItems.length)}`);
     }
   }
-  
-  // 5. Update Novel with storyboard reference
-  await docClient.send(new UpdateCommand({
-    TableName: TABLE_NAME,
-    Key: {
-      PK: `NOVEL#${novelId}`,
-      SK: `NOVEL#${novelId}`
-    },
-    UpdateExpression: 'SET storyboardId = :storyboardId, updatedAt = :updatedAt',
-    ExpressionAttributeValues: {
-      ':storyboardId': storyboardId,
-      ':updatedAt': timestamp
-    }
-  }));
-  
+
+  await docClient.send(
+    new UpdateCommand({
+      TableName: TABLE_NAME,
+      Key: {
+        PK: `NOVEL#${novelId}`,
+        SK: `NOVEL#${novelId}`
+      },
+      UpdateExpression: 'SET storyboardId = :storyboardId, updatedAt = :updatedAt',
+      ExpressionAttributeValues: {
+        ':storyboardId': storyboardId,
+        ':updatedAt': timestamp
+      }
+    })
+  );
+
   console.log('[AnalyzeWorker] Novel updated with storyboard reference');
-  
+
   return { storyboardId };
+}
+
+function buildCharacterItems(characters, novelId, storyboardId, timestamp) {
+  const lookup = new Map();
+  const items = [];
+
+  for (const char of characters) {
+    const item = normaliseCharacter(char, novelId, storyboardId, timestamp);
+    items.push(item);
+    lookup.set(item.id, item);
+    if (item.name) {
+      lookup.set(item.name.toLowerCase(), item);
+    }
+  }
+
+  return { items, lookup };
+}
+
+function mergeCharacterItems(baseItems, additionalItems) {
+  const map = new Map();
+  for (const item of baseItems) {
+    map.set(item.id, item);
+  }
+  for (const item of additionalItems) {
+    if (!map.has(item.id)) {
+      map.set(item.id, item);
+    }
+  }
+  return Array.from(map.values());
+}
+
+function buildPanelItems(panels, storyboardId, novelId, timestamp, characterLookup) {
+  const items = [];
+  const additionalCharacters = [];
+
+  panels.forEach((panel, idx) => {
+    const panelId = panel.id || uuid();
+    const sequence = `PANEL#${String(idx).padStart(4, '0')}`;
+
+    const { characters = [], dialogue = [], ...rest } = panel;
+    const normalisedCharacters = normalizePanelCharacters(
+      characters,
+      characterLookup,
+      additionalCharacters,
+      novelId,
+      storyboardId,
+      timestamp
+    );
+
+    const item = {
+      PK: `STORYBOARD#${storyboardId}`,
+      SK: sequence,
+      id: panelId,
+      storyboardId,
+      novelId,
+      ...rest,
+      characters: normalisedCharacters,
+      dialogue,
+      status: panel.status || 'pending',
+      imagesS3: panel.imagesS3 || {},
+      createdAt: timestamp,
+      updatedAt: timestamp,
+      GSI1PK: `PANEL#${panelId}`,
+      GSI1SK: `PANEL#${panelId}`
+    };
+
+    items.push(item);
+  });
+
+  return { items, additionalCharacters };
+}
+
+function normalizePanelCharacters(characters, lookup, additionalCharacters, novelId, storyboardId, timestamp) {
+  return (characters || []).map((character) => {
+    const existing =
+      (character.charId && lookup.get(character.charId)) ||
+      (character.name && lookup.get(character.name.toLowerCase()));
+
+    if (existing) {
+      return {
+        ...character,
+        charId: existing.id,
+        configId: character.configId || existing.defaultConfigId || null
+      };
+    }
+
+    const created = createCharacterFromPanelCharacter(character, novelId, storyboardId, timestamp);
+    lookup.set(created.id, created);
+    if (created.name) {
+      lookup.set(created.name.toLowerCase(), created);
+    }
+    additionalCharacters.push(created);
+
+    return {
+      ...character,
+      charId: created.id,
+      configId: created.defaultConfigId || null
+    };
+  });
+}
+
+function normaliseCharacter(character, novelId, storyboardId, timestamp) {
+  const charId = character.id || uuid();
+
+  const baseInfo = character.baseInfo || {
+    gender: character.gender,
+    age: character.age,
+    personality: character.personality || []
+  };
+
+  return {
+    PK: `NOVEL#${novelId}`,
+    SK: `CHAR#${charId}`,
+    id: charId,
+    novelId,
+    storyboardId,
+    name: character.name || `Character ${charId.slice(0, 6)}`,
+    role: character.role || 'supporting',
+    baseInfo,
+    appearance: character.appearance || {},
+    personality: character.personality || [],
+    defaultConfigId: character.defaultConfigId || null,
+    portraits: character.portraits || [],
+    createdAt: timestamp,
+    updatedAt: timestamp,
+    GSI1PK: `CHAR#${charId}`,
+    GSI1SK: `CHAR#${charId}`
+  };
+}
+
+function createCharacterFromPanelCharacter(character, novelId, storyboardId, timestamp) {
+  const charId = character.charId || uuid();
+  return {
+    PK: `NOVEL#${novelId}`,
+    SK: `CHAR#${charId}`,
+    id: charId,
+    novelId,
+    storyboardId,
+    name: character.name || `Character ${charId.slice(0, 6)}`,
+    role: character.role || 'supporting',
+    baseInfo: {},
+    appearance: character.appearance || {},
+    personality: character.personality || [],
+    defaultConfigId: null,
+    portraits: [],
+    createdAt: timestamp,
+    updatedAt: timestamp,
+    GSI1PK: `CHAR#${charId}`,
+    GSI1SK: `CHAR#${charId}`
+  };
 }
 
 /**
@@ -318,6 +465,7 @@ async function writeStoryboardToDynamoDB(novelId, userId, storyboard) {
  */
 exports.handler = async (event) => {
   console.log(`[AnalyzeWorker] Processing ${event.Records.length} messages`);
+  const batchItemFailures = [];
   
   for (const record of event.Records) {
     // SQS body might be double-encoded, handle both cases
@@ -328,8 +476,20 @@ exports.handler = async (event) => {
       // If first parse fails, body might already be an object
       messageBody = record.body;
     }
+
+    if (!messageBody || typeof messageBody !== 'object') {
+      console.error(`[AnalyzeWorker] Invalid message body for ${record.messageId}`);
+      batchItemFailures.push({ itemIdentifier: record.messageId });
+      continue;
+    }
     
     const { jobId, novelId, userId, chapterNumber: rawChapterNumber } = messageBody;
+
+    if (!jobId || !novelId) {
+      console.error(`[AnalyzeWorker] Missing required fields for message ${record.messageId}`);
+      batchItemFailures.push({ itemIdentifier: record.messageId });
+      continue;
+    }
     
     const chapterNumber = (() => {
       if (rawChapterNumber === undefined || rawChapterNumber === null) {
@@ -530,13 +690,13 @@ exports.handler = async (event) => {
       }, error.message);
       
       console.warn(`[AnalyzeWorker] 消息 ${jobId} 将被标记为已处理以避免队列阻塞`);
+      batchItemFailures.push({ itemIdentifier: record.messageId });
       continue;
     }
   }
   
   return {
-    statusCode: 200,
-    body: JSON.stringify({ processed: event.Records.length })
+    batchItemFailures
   };
 };
 

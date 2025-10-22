@@ -1,207 +1,534 @@
-const { successResponse, errorResponse } = require('../../lib/response');
+const { DynamoDBClient } = require('@aws-sdk/client-dynamodb');
+const {
+  DynamoDBDocumentClient,
+  GetCommand,
+  QueryCommand,
+  PutCommand,
+  UpdateCommand,
+  DeleteCommand,
+  BatchWriteCommand
+} = require('@aws-sdk/lib-dynamodb');
+const { successResponse, errorResponse, corsHeaders } = require('../../lib/response');
 const { getUserId } = require('../../lib/auth');
+const { uploadImage, getPresignedUrl } = require('../../lib/s3-utils');
 const { v4: uuid } = require('uuid');
 
+let Busboy = null;
+try {
+  // eslint-disable-next-line global-require
+  Busboy = require('busboy');
+} catch (error) {
+  console.warn('[CharactersFunction] busboy not installed, multipart uploads will use JSON fallback');
+}
+
+const dynamoClient = new DynamoDBClient({});
+const docClient = DynamoDBDocumentClient.from(dynamoClient);
+
+const TABLE_NAME = process.env.TABLE_NAME;
+const MAX_UPLOADS = 10;
+const DEFAULT_CONFIG_LIMIT = 100;
+
 /**
- * 角色管理 Lambda 函数
- * 处理所有角色和配置相关的路由
+ * Main Lambda handler
  */
 exports.handler = async (event) => {
   try {
-    const path = event.path || event.rawPath;
-    const method = event.httpMethod || event.requestContext?.http?.method;
-    const userId = getUserId(event) || 'mock-user';
-    
-    console.log(`CharactersFunction: ${method} ${path}`);
-    
-    // GET /characters/{charId} - 获取角色详情
-    if (method === 'GET' && path.match(/\/characters\/[^/]+$/) && !path.includes('/configurations')) {
-      const charId = event.pathParameters?.charId;
-      
+    const method = event.httpMethod || event.requestContext?.http?.method || 'GET';
+    const rawPath = event.rawPath || event.path || '';
+    const path = rawPath.replace(/^\/dev/i, '');
+    const userId = getUserId(event) || 'anonymous';
+
+    console.log(`[CharactersFunction] ${method} ${rawPath} (user: ${userId})`);
+
+    if (!TABLE_NAME) {
+      throw new Error('TABLE_NAME environment variable not set');
+    }
+
+    // GET /characters/{charId}
+    if (method === 'GET' && /^\/characters\/[^/]+$/.test(path)) {
+      const { charId } = event.pathParameters || {};
+      const character = await loadCharacter(charId);
+      if (!character) {
+        return errorResponse(404, `Character ${charId} not found`);
+      }
+      const configurations = await listConfigurations(charId);
+      const enrichedConfigs = await Promise.all(
+        configurations.map(async (config) => formatConfigurationResponse(config))
+      );
+
       return successResponse({
-        id: charId,
-        name: '艾莉娅',
-        role: 'protagonist',
-        novelId: 'novel-001',
-        baseInfo: {
-          gender: 'female',
-          age: 18,
-          personality: ['勇敢', '善良', '有时冲动']
-        },
-        configurations: [
-          {
-            id: 'config-001',
-            charId,
-            name: '战斗模式',
-            description: '穿着银白色铠甲，手持魔法剑',
-            tags: ['战斗', '铠甲'],
-            appearance: {
-              hairStyle: '战斗马尾',
-              clothing: ['银白色铠甲', '蓝色斗篷']
-            },
-            referenceImages: [],
-            generatedPortraits: [],
-            isDefault: true,
-            createdAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString()
-          }
-        ],
-        defaultConfigId: 'config-001',
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString()
+        ...formatCharacterResponse(character),
+        configurations: enrichedConfigs
       });
     }
-    
-    // PUT /characters/{charId} - 更新角色基础信息
-    if (method === 'PUT' && path.match(/\/characters\/[^/]+$/) && !path.includes('/configurations')) {
-      const charId = event.pathParameters?.charId;
-      const body = JSON.parse(event.body || '{}');
-      
-      console.log('Updating character:', charId, body);
-      
-      return successResponse({
-        id: charId,
-        name: body.name || '艾莉娅',
-        role: body.role || 'protagonist',
-        baseInfo: body.baseInfo || {},
-        updatedAt: new Date().toISOString()
-      });
+
+    // PUT /characters/{charId}
+    if (method === 'PUT' && /^\/characters\/[^/]+$/.test(path)) {
+      const { charId } = event.pathParameters || {};
+      const payload = parseJsonBody(event.body);
+
+      const existing = await loadCharacter(charId);
+      if (!existing) {
+        return errorResponse(404, `Character ${charId} not found`);
+      }
+
+      const updated = await updateCharacter(existing, payload);
+      return successResponse(formatCharacterResponse(updated));
     }
-    
-    // GET /characters/{charId}/configurations - 列举配置
-    if (method === 'GET' && path.match(/\/characters\/[^/]+\/configurations$/)  && !path.match(/\/configurations\/[^/]+/)) {
-      const charId = event.pathParameters?.charId;
-      
-      return successResponse([
-        {
-          id: 'config-001',
-          charId,
-          name: '战斗模式',
-          description: '穿着银白色铠甲',
-          tags: ['战斗'],
-          isDefault: true,
-          createdAt: new Date().toISOString()
-        },
-        {
-          id: 'config-002',
-          charId,
-          name: '日常装扮',
-          description: '白色连衣裙',
-          tags: ['日常'],
-          isDefault: false,
-          createdAt: new Date().toISOString()
-        }
-      ]);
+
+    // GET /characters/{charId}/configurations
+    if (method === 'GET' && /^\/characters\/[^/]+\/configurations$/.test(path)) {
+      const { charId } = event.pathParameters || {};
+      const configs = await listConfigurations(charId, DEFAULT_CONFIG_LIMIT);
+      const enriched = await Promise.all(configs.map((config) => formatConfigurationResponse(config)));
+      return successResponse(enriched);
     }
-    
-    // POST /characters/{charId}/configurations - 创建配置
-    if (method === 'POST' && path.match(/\/characters\/[^/]+\/configurations$/)) {
-      const charId = event.pathParameters?.charId;
-      const body = JSON.parse(event.body || '{}');
-      
-      const config = {
-        id: uuid(),
-        charId,
-        name: body.name,
-        description: body.description,
-        tags: body.tags || [],
-        appearance: body.appearance || {},
-        referenceImages: [],
-        generatedPortraits: [],
-        isDefault: body.isDefault || false,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString()
-      };
-      
-      console.log('Created configuration:', config.id);
-      return successResponse(config, 201);
+
+    // POST /characters/{charId}/configurations
+    if (method === 'POST' && /^\/characters\/[^/]+\/configurations$/.test(path)) {
+      const { charId } = event.pathParameters || {};
+      const character = await loadCharacter(charId);
+      if (!character) {
+        return errorResponse(404, `Character ${charId} not found`);
+      }
+
+      const payload = parseJsonBody(event.body);
+      if (!payload.name) {
+        return errorResponse(400, 'Configuration name is required');
+      }
+
+      const config = await createConfiguration(character, payload);
+      return successResponse(await formatConfigurationResponse(config), 201);
     }
-    
-    // GET /characters/{charId}/configurations/{configId} - 获取配置
-    if (method === 'GET' && path.match(/\/characters\/[^/]+\/configurations\/[^/]+$/) && !path.includes('/refs') && !path.includes('/portraits')) {
-      const { charId, configId } = event.pathParameters;
-      
-      return successResponse({
-        id: configId,
-        charId,
-        name: '战斗模式',
-        description: '穿着银白色铠甲，手持魔法剑',
-        tags: ['战斗', '铠甲'],
-        appearance: {
-          hairStyle: '战斗马尾',
-          clothing: ['铠甲', '剑']
-        },
-        referenceImages: [
-          {
-            url: `https://example.com/${configId}/ref-001.png`,
-            caption: '正面视角',
-            uploadedAt: new Date().toISOString()
-          }
-        ],
-        generatedPortraits: [],
-        isDefault: true,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString()
-      });
+
+    // GET /characters/{charId}/configurations/{configId}
+    if (
+      method === 'GET' &&
+      /^\/characters\/[^/]+\/configurations\/[^/]+$/.test(path) &&
+      !path.includes('/refs')
+    ) {
+      const { charId, configId } = event.pathParameters || {};
+      const config = await loadConfiguration(charId, configId);
+      if (!config) {
+        return errorResponse(404, `Configuration ${configId} not found`);
+      }
+      return successResponse(await formatConfigurationResponse(config));
     }
-    
-    // PUT /characters/{charId}/configurations/{configId} - 更新配置
-    if (method === 'PUT' && path.match(/\/characters\/[^/]+\/configurations\/[^/]+$/)) {
-      const { charId, configId } = event.pathParameters;
-      const body = JSON.parse(event.body || '{}');
-      
-      console.log('Updating configuration:', configId, body);
-      
-      return successResponse({
-        id: configId,
-        charId,
-        ...body,
-        updatedAt: new Date().toISOString()
-      });
+
+    // PUT /characters/{charId}/configurations/{configId}
+    if (method === 'PUT' && /^\/characters\/[^/]+\/configurations\/[^/]+$/.test(path)) {
+      const { charId, configId } = event.pathParameters || {};
+      const payload = parseJsonBody(event.body);
+      const config = await updateConfiguration(charId, configId, payload);
+      return successResponse(await formatConfigurationResponse(config));
     }
-    
-    // DELETE /characters/{charId}/configurations/{configId} - 删除配置
-    if (method === 'DELETE' && path.match(/\/characters\/[^/]+\/configurations\/[^/]+$/)) {
-      const { configId } = event.pathParameters;
-      console.log('Deleting configuration:', configId);
-      
+
+    // DELETE /characters/{charId}/configurations/{configId}
+    if (method === 'DELETE' && /^\/characters\/[^/]+\/configurations\/[^/]+$/.test(path)) {
+      const { charId, configId } = event.pathParameters || {};
+      await deleteConfiguration(charId, configId);
       return {
         statusCode: 204,
-        headers: require('../../lib/response').corsHeaders(),
+        headers: corsHeaders(),
         body: ''
       };
     }
-    
-    // POST /characters/{charId}/configurations/{configId}/refs - 上传参考图
-    if (method === 'POST' && path.includes('/refs')) {
-      const { charId, configId } = event.pathParameters;
-      
-      console.log('Uploading reference images for config:', configId);
-      
-      // Mock: 返回上传成功的图片列表
-      return successResponse({
-        uploaded: [
-          {
-            s3Key: `characters/${charId}/${configId}/ref-001.png`,
-            url: `https://example.com/${configId}/ref-001.png`,
-            caption: '参考图 1'
+
+    // POST /characters/{charId}/configurations/{configId}/refs
+    if (method === 'POST' && /\/configurations\/[^/]+\/refs$/.test(path)) {
+      const { charId, configId } = event.pathParameters || {};
+      const config = await loadConfiguration(charId, configId);
+      if (!config) {
+        return errorResponse(404, `Configuration ${configId} not found`);
+      }
+
+      const { files, fields } = await parseUploads(event);
+      if (files.length === 0) {
+        return errorResponse(400, 'No files uploaded');
+      }
+      if (files.length > MAX_UPLOADS) {
+        return errorResponse(400, `Too many files, maximum ${MAX_UPLOADS}`);
+      }
+
+      const timestamp = new Date().toISOString();
+      const uploaded = [];
+
+      for (let idx = 0; idx < files.length; idx += 1) {
+        const file = files[idx];
+        const captionField = Array.isArray(fields.caption) ? fields.caption[idx] : fields.caption;
+        const caption = captionField || file.filename || `Reference ${idx + 1}`;
+
+        const key = `characters/${charId}/${configId}/refs/${Date.now()}-${idx}-${sanitizeFilename(
+          file.filename || 'image.png'
+        )}`;
+
+        await uploadImage(key, file.buffer, {
+          contentType: file.contentType || 'image/png',
+          metadata: {
+            'char-id': charId,
+            'config-id': configId,
+            caption
           },
-          {
-            s3Key: `characters/${charId}/${configId}/ref-002.png`,
-            url: `https://example.com/${configId}/ref-002.png`,
-            caption: '参考图 2'
+          tagging: `Type=reference&Character=${charId}`
+        });
+
+        uploaded.push({
+          s3Key: key,
+          caption,
+          uploadedAt: timestamp
+        });
+      }
+
+      const newReferences = mergeReferenceImages(config.referenceImagesS3 || [], uploaded);
+      await docClient.send(
+        new UpdateCommand({
+          TableName: TABLE_NAME,
+          Key: buildConfigKey(charId, configId),
+          UpdateExpression: 'SET referenceImagesS3 = :refs, updatedAt = :updatedAt',
+          ExpressionAttributeValues: {
+            ':refs': newReferences,
+            ':updatedAt': new Date().toISOString()
           }
-        ]
-      });
+        })
+      );
+
+      const response = await Promise.all(
+        uploaded.map(async (item) => ({
+          ...item,
+          url: await getPresignedUrl(item.s3Key)
+        }))
+      );
+
+      return successResponse({ uploaded: response });
     }
-    
+
     return errorResponse(404, 'Not found');
-    
   } catch (error) {
-    console.error('CharactersFunction error:', error);
-    return errorResponse(500, error.message);
+    console.error('[CharactersFunction] Error:', error);
+    return errorResponse(500, error.message || 'Internal Server Error');
   }
 };
 
+/**
+ * Load character using the global secondary index (CHAR#charId).
+ */
+async function loadCharacter(charId) {
+  if (!charId) return null;
 
+  const result = await docClient.send(
+    new QueryCommand({
+      TableName: TABLE_NAME,
+      IndexName: 'GSI1',
+      KeyConditionExpression: 'GSI1PK = :pk AND GSI1SK = :sk',
+      ExpressionAttributeValues: {
+        ':pk': `CHAR#${charId}`,
+        ':sk': `CHAR#${charId}`
+      },
+      Limit: 1
+    })
+  );
+
+  return result.Items?.[0] || null;
+}
+
+async function updateCharacter(existing, payload) {
+  const updatedItem = {
+    ...existing,
+    name: payload.name || existing.name,
+    role: payload.role || existing.role,
+    baseInfo: payload.baseInfo || existing.baseInfo,
+    updatedAt: new Date().toISOString()
+  };
+
+  await docClient.send(
+    new PutCommand({
+      TableName: TABLE_NAME,
+      Item: updatedItem
+    })
+  );
+
+  return updatedItem;
+}
+
+async function listConfigurations(charId, limit = DEFAULT_CONFIG_LIMIT) {
+  const result = await docClient.send(
+    new QueryCommand({
+      TableName: TABLE_NAME,
+      KeyConditionExpression: 'PK = :pk AND begins_with(SK, :config)',
+      ExpressionAttributeValues: {
+        ':pk': `CHAR#${charId}`,
+        ':config': 'CONFIG#'
+      },
+      Limit: limit
+    })
+  );
+  return result.Items || [];
+}
+
+async function createConfiguration(character, payload) {
+  const configId = payload.id || uuid();
+  const timestamp = new Date().toISOString();
+
+  const item = {
+    PK: `CHAR#${character.id}`,
+    SK: `CONFIG#${configId}`,
+    id: configId,
+    charId: character.id,
+    novelId: character.novelId,
+    name: payload.name,
+    description: payload.description || '',
+    tags: payload.tags || [],
+    appearance: payload.appearance || {},
+    referenceImagesS3: [],
+    generatedPortraitsS3: [],
+    isDefault: Boolean(payload.isDefault),
+    createdAt: timestamp,
+    updatedAt: timestamp,
+    GSI1PK: `CONFIG#${configId}`,
+    GSI1SK: `CONFIG#${configId}`
+  };
+
+  await docClient.send(
+    new PutCommand({
+      TableName: TABLE_NAME,
+      Item: item
+    })
+  );
+
+  if (item.isDefault) {
+    await docClient.send(
+      new UpdateCommand({
+        TableName: TABLE_NAME,
+        Key: {
+          PK: character.PK,
+          SK: character.SK
+        },
+        UpdateExpression: 'SET defaultConfigId = :configId, updatedAt = :updatedAt',
+        ExpressionAttributeValues: {
+          ':configId': item.id,
+          ':updatedAt': new Date().toISOString()
+        }
+      })
+    );
+  }
+
+  return item;
+}
+
+async function loadConfiguration(charId, configId) {
+  if (!charId || !configId) return null;
+
+  const result = await docClient.send(
+    new GetCommand({
+      TableName: TABLE_NAME,
+      Key: buildConfigKey(charId, configId)
+    })
+  );
+  return result.Item || null;
+}
+
+async function updateConfiguration(charId, configId, payload) {
+  const existing = await loadConfiguration(charId, configId);
+  if (!existing) {
+    throw new Error(`Configuration ${configId} not found`);
+  }
+
+  const updated = {
+    ...existing,
+    name: payload.name ?? existing.name,
+    description: payload.description ?? existing.description,
+    tags: payload.tags ?? existing.tags,
+    appearance: payload.appearance ?? existing.appearance,
+    isDefault: payload.isDefault ?? existing.isDefault,
+    updatedAt: new Date().toISOString()
+  };
+
+  await docClient.send(
+    new PutCommand({
+      TableName: TABLE_NAME,
+      Item: updated
+    })
+  );
+
+  if (updated.isDefault && updated.charId) {
+    await docClient.send(
+      new UpdateCommand({
+        TableName: TABLE_NAME,
+        Key: {
+          PK: `NOVEL#${updated.novelId}`,
+          SK: `CHAR#${updated.charId}`
+        },
+        UpdateExpression: 'SET defaultConfigId = :configId, updatedAt = :updatedAt',
+        ExpressionAttributeValues: {
+          ':configId': updated.id,
+          ':updatedAt': new Date().toISOString()
+        }
+      })
+    );
+  }
+
+  return updated;
+}
+
+async function deleteConfiguration(charId, configId) {
+  await docClient.send(
+    new DeleteCommand({
+      TableName: TABLE_NAME,
+      Key: buildConfigKey(charId, configId)
+    })
+  );
+}
+
+/**
+ * Merge new reference entries while deduplicating by s3Key.
+ */
+function mergeReferenceImages(existing, incoming) {
+  const merged = [...(existing || [])];
+  const index = new Map(merged.map((item) => [item.s3Key, item]));
+
+  for (const ref of incoming) {
+    if (index.has(ref.s3Key)) {
+      Object.assign(index.get(ref.s3Key), ref);
+    } else {
+      merged.push(ref);
+      index.set(ref.s3Key, ref);
+    }
+  }
+  return merged;
+}
+
+function buildConfigKey(charId, configId) {
+  return {
+    PK: `CHAR#${charId}`,
+    SK: `CONFIG#${configId}`
+  };
+}
+
+function parseJsonBody(body) {
+  if (!body) return {};
+  try {
+    return JSON.parse(body);
+  } catch (error) {
+    throw new Error('Invalid JSON body');
+  }
+}
+
+async function parseUploads(event) {
+  const headers = lowerCaseHeaders(event.headers || {});
+  const contentType = headers['content-type'] || headers['Content-Type'];
+
+  if (contentType && contentType.includes('multipart/form-data') && Busboy) {
+    return parseMultipart(event, contentType);
+  }
+
+  // Fallback: expect JSON payload { images: [{ filename, contentType, data(base64), caption? }] }
+  const payload = parseJsonBody(event.body);
+  const images = Array.isArray(payload.images) ? payload.images : [];
+  const files = images.map((image) => ({
+    fieldname: 'images',
+    filename: image.filename || 'upload.png',
+    contentType: image.contentType || 'image/png',
+    buffer: Buffer.from(image.data || '', image.encoding || 'base64')
+  }));
+
+  return { files, fields: payload.fields || {} };
+}
+
+function lowerCaseHeaders(headers) {
+  return Object.entries(headers || {}).reduce((acc, [key, value]) => {
+    acc[key.toLowerCase()] = value;
+    return acc;
+  }, {});
+}
+
+function parseMultipart(event, contentType) {
+  return new Promise((resolve, reject) => {
+    const files = [];
+    const fields = {};
+    const busboy = Busboy({
+      headers: {
+        'content-type': contentType
+      }
+    });
+
+    busboy.on('file', (fieldname, file, filename, encoding, mimetype) => {
+      const chunks = [];
+      file.on('data', (data) => chunks.push(data));
+      file.on('end', () => {
+        files.push({
+          fieldname,
+          filename,
+          contentType: mimetype,
+          buffer: Buffer.concat(chunks)
+        });
+      });
+    });
+
+    busboy.on('field', (fieldname, value) => {
+      if (fields[fieldname]) {
+        if (!Array.isArray(fields[fieldname])) {
+          fields[fieldname] = [fields[fieldname]];
+        }
+        fields[fieldname].push(value);
+      } else {
+        fields[fieldname] = value;
+      }
+    });
+
+    busboy.on('error', reject);
+    busboy.on('finish', () => resolve({ files, fields }));
+
+    const body = event.isBase64Encoded ? Buffer.from(event.body || '', 'base64') : event.body;
+    busboy.end(body);
+  });
+}
+
+async function formatConfigurationResponse(config) {
+  const referenceImages = await Promise.all(
+    (config.referenceImagesS3 || []).map(async (item) => ({
+      ...item,
+      url: await getPresignedUrl(item.s3Key)
+    }))
+  );
+
+  const generatedPortraits = await Promise.all(
+    (config.generatedPortraitsS3 || []).map(async (item) => ({
+      ...item,
+      url: await getPresignedUrl(item.s3Key)
+    }))
+  );
+
+  return {
+    id: config.id,
+    charId: config.charId,
+    novelId: config.novelId,
+    name: config.name,
+    description: config.description,
+    tags: config.tags || [],
+    appearance: config.appearance || {},
+    referenceImages,
+    generatedPortraits,
+    isDefault: Boolean(config.isDefault),
+    createdAt: config.createdAt,
+    updatedAt: config.updatedAt
+  };
+}
+
+function formatCharacterResponse(character) {
+  return {
+    id: character.id,
+    novelId: character.novelId,
+    name: character.name,
+    role: character.role,
+    baseInfo: character.baseInfo || {},
+    defaultConfigId: character.defaultConfigId || null,
+    portraits: character.portraits || [],
+    createdAt: character.createdAt,
+    updatedAt: character.updatedAt
+  };
+}
+
+function sanitizeFilename(name) {
+  return name.replace(/[^a-zA-Z0-9._-]/g, '_');
+}
 

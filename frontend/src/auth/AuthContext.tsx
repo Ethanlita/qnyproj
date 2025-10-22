@@ -31,11 +31,12 @@ export function AuthProvider({ children }: AuthProviderProps) {
   useEffect(() => {
     // 初始化：检查是否已登录
     authService.getUser()
-      .then(user => {
+      .then((user) => {
         setUser(user);
       })
-      .catch(error => {
-        console.error('[AuthProvider] Failed to get user:', error);
+      .catch((error: unknown) => {
+        const message = error instanceof Error ? error.message : String(error);
+        console.error('[AuthProvider] Failed to get user:', message);
       })
       .finally(() => {
         setIsLoading(false);
@@ -98,6 +99,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
 /**
  * 使用认证上下文的 Hook
  */
+// eslint-disable-next-line react-refresh/only-export-components
 export function useAuth(): AuthContextType {
   const context = useContext(AuthContext);
   if (context === undefined) {

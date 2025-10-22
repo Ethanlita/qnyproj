@@ -48,9 +48,10 @@ export function NovelUploadPage() {
         alert(`分析已开始! Job ID: ${job.jobId}`);
       }
 
-    } catch (err: any) {
-      console.error('Upload failed:', err);
-      setError(err.message || '上传失败');
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error);
+      console.error('Upload failed:', error);
+      setError(message || '上传失败');
     } finally {
       setUploading(false);
     }
@@ -176,4 +177,3 @@ export function NovelUploadPage() {
     </div>
   );
 }
-
