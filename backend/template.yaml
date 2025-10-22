@@ -2344,6 +2344,12 @@ Resources:
                 - dynamodb:GetShardIterator
                 - dynamodb:ListStreams
               Resource: !GetAtt ComicDataTable.StreamArn
+        # ⭐ 问题 2 修复: 允许发送 EventBridge 事件
+        - Statement:
+            - Effect: Allow
+              Action:
+                - events:PutEvents
+              Resource: '*'
       Events:
         PanelTaskStream:
           Type: DynamoDB
@@ -2354,6 +2360,34 @@ Resources:
             FilterCriteria:
               Filters:
                 - Pattern: '{"eventName": ["INSERT"], "dynamodb": {"NewImage": {"SK": {"S": [{"prefix": "PANEL_TASK#"}]}}}}'
+
+  # ⭐ 问题 2 修复: Retry Handler Lambda
+  RetryHandlerFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: .
+      Handler: functions/retry-handler/index.handler
+      Runtime: nodejs22.x
+      Architectures:
+        - x86_64
+      Timeout: 60
+      MemorySize: 256
+      Environment:
+        Variables:
+          TABLE_NAME: !Ref ComicDataTable
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref ComicDataTable
+      Events:
+        RetryPanelTaskEvent:
+          Type: EventBridgeRule
+          Properties:
+            Pattern:
+              source:
+                - qnyproj.panel-worker
+              detail-type:
+                - RetryPanelTask
+
   PanelsFunction:
     Type: AWS::Serverless::Function
     Properties:

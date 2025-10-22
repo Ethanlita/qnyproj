@@ -6,6 +6,7 @@ const {
   DeleteCommand,
   PutCommand
 } = require('@aws-sdk/lib-dynamodb');
+const { EventBridgeClient, PutEventsCommand } = require('@aws-sdk/client-eventbridge');
 const { unmarshall } = require('@aws-sdk/util-dynamodb');
 const { uploadImage } = require('../../lib/s3-utils');
 const { s3ImagesToBase64 } = require('../../lib/s3-image-utils');
@@ -15,6 +16,7 @@ const { getGeminiConfig } = require('../../lib/ai-secrets');
 
 const dynamoClient = new DynamoDBClient({});
 const docClient = DynamoDBDocumentClient.from(dynamoClient);
+const eventBridgeClient = new EventBridgeClient({});
 
 const TABLE_NAME = process.env.TABLE_NAME;
 const ASSETS_BUCKET = process.env.ASSETS_BUCKET;
@@ -302,13 +304,13 @@ async function markTaskFailed(task, reason) {
 
   // Check if we should retry
   if (currentRetry < MAX_ATTEMPTS - 1) {
-    // Retry by DELETE + INSERT to re-trigger DynamoDB Stream
-    console.log(`[PanelWorker] Retrying task ${task.panelId} (retry ${updatedRetry}/${MAX_ATTEMPTS})`);
+    // ⭐ 问题 2 修复: 使用 EventBridge 替代 Lambda 内 sleep
+    console.log(`[PanelWorker] Scheduling retry for task ${task.panelId} (retry ${updatedRetry}/${MAX_ATTEMPTS})`);
     
     try {
       // Calculate exponential backoff delay (10s, 20s, 40s...)
       const delaySeconds = Math.pow(2, currentRetry) * 10;
-      const retryAt = new Date(Date.now() + delaySeconds * 1000).toISOString();
+      const retryAt = new Date(Date.now() + delaySeconds * 1000);
       
       // Delete current task record
       await docClient.send(
@@ -321,33 +323,34 @@ async function markTaskFailed(task, reason) {
         })
       );
       
-      // Wait for the delay period before re-inserting
-      console.log(`[PanelWorker] Task ${task.panelId} will be retried at ${retryAt} (delay: ${delaySeconds}s)`);
+      console.log(`[PanelWorker] Task ${task.panelId} will be retried at ${retryAt.toISOString()} (delay: ${delaySeconds}s)`);
       
-      // Re-insert task with updated retry count to trigger Stream INSERT event
-      // Note: In production, use a separate retry queue/scheduler service
-      // For now, we re-insert immediately and rely on Lambda concurrency
-      await new Promise(resolve => setTimeout(resolve, Math.min(delaySeconds * 1000, 15000))); // Max 15s in-Lambda delay
-      
-      await docClient.send(
-        new PutCommand({
-          TableName: TABLE_NAME,
-          Item: {
-            ...task,
-            status: 'pending',
-            retryCount: updatedRetry,
-            lastError: reason,
-            lastAttemptAt: timestamp,
-            retryAt,
-            updatedAt: new Date().toISOString()
-          }
+      // Use EventBridge to schedule the retry (no Lambda sleep!)
+      await eventBridgeClient.send(
+        new PutEventsCommand({
+          Entries: [
+            {
+              Source: 'qnyproj.panel-worker',
+              DetailType: 'RetryPanelTask',
+              Detail: JSON.stringify({
+                ...task,
+                status: 'pending',
+                retryCount: updatedRetry,
+                lastError: reason,
+                lastAttemptAt: timestamp,
+                retryAt: retryAt.toISOString(),
+                maxRetries: MAX_ATTEMPTS
+              }),
+              Time: retryAt // EventBridge will deliver at this time
+            }
+          ]
         })
       );
       
-      console.log(`[PanelWorker] Task ${task.panelId} re-inserted for retry`);
+      console.log(`[PanelWorker] Task ${task.panelId} scheduled for retry via EventBridge`);
       return; // Don't mark job as failed yet
     } catch (retryError) {
-      console.error(`[PanelWorker] Failed to retry task ${task.panelId}:`, retryError);
+      console.error(`[PanelWorker] Failed to schedule retry for task ${task.panelId}:`, retryError);
       // Fall through to mark as failed
     }
   }

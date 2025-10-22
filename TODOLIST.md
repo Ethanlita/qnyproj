@@ -13,7 +13,16 @@
 - ✅ 异常回滚不完整（部分上传成功时的清理）
 
 **修复文件**:
-- `backend/functions/characters/index.js` ✅
+- `backend/fun## 📊 进度追踪
+
+| 问题 | 优先级 | 工作量### Phase 2: HIGH 修复 (今天完成)
+4. ✅ 修复问题 2: Lambda 超时风险
+5. 🔵 提交: `fix(HIGH): 使用 EventBridge 替代 Lambda sleep`状态 | 开始时间 | 完成时间 |
+|------|--------|--------|------|----------|----------|
+| 问题 1: 多图上传流程 | CRITICAL | 1-2h | ✅ 已完成 | 14:00 | 14:30 |
+| 问题 2: Lambda 超时风险 | HIGH | 2-3h | ✅ 已完成 | 14:30 | 15:00 |
+| 问题 3: 姿态/标签整合 | MEDIUM | 2-3h | 🔴 待开始 | - | - |
+| 问题 4: 幂等控制 | MEDIUM | 1-2h | 🔴 待开始 | - | - |haracters/index.js` ✅
 - `backend/lib/s3-utils.js` ✅ (添加 deleteImage 函数)
 
 **实现清单**:
@@ -47,35 +56,27 @@ curl -X POST .../characters/.../configurations/.../reference-images \
 ### ⭐⭐⭐⭐ 问题 2: PanelWorker Lambda 超时风险 (High)
 **优先级**: HIGH  
 **工作量**: 2-3 小时  
-**状态**: 🔴 待开始
+**状态**: ✅ 已完成
 
 **问题描述**:
-- ❌ Lambda 内 sleep 15 秒等待重试
-- ❌ 浪费 Lambda 执行时间和成本
-- ❌ 可能触发 Lambda 超时（默认 30s）
-
-**当前实现**:
-```javascript
-// panel-worker/index.js Line 297-395
-await new Promise(resolve => setTimeout(resolve, Math.min(delaySeconds * 1000, 15000)));
-await docClient.send(new PutCommand({ ... }));
-```
-
-**修复方案**:
-使用 **EventBridge Scheduler** 替代 Lambda 内 sleep
+- ✅ Lambda 内 sleep 15 秒等待重试
+- ✅ 浪费 Lambda 执行时间和成本
+- ✅ 可能触发 Lambda 超时（默认 30s）
 
 **修复文件**:
-- `backend/functions/panel-worker/index.js` (修改 markTaskFailed)
-- `backend/functions/panel-worker/retry-handler.js` (新建)
-- `backend/template.yaml` (添加 EventBridge 资源)
+- `backend/functions/panel-worker/index.js` ✅ (修改 markTaskFailed)
+- `backend/functions/retry-handler/index.js` ✅ (新建独立目录)
+- `backend/template.yaml` ✅ (添加 EventBridge 资源)
 
 **实现清单**:
-- [ ] 创建 retry-handler.js Lambda 函数
-- [ ] 在 markTaskFailed 中使用 EventBridge PutEventsCommand
-- [ ] 在 template.yaml 添加 EventBridge Rule
-- [ ] 配置 Lambda 权限（允许 EventBridge 调用）
-- [ ] 移除 Lambda 内 sleep 逻辑
-- [ ] 更新环境变量
+- [x] 创建 retry-handler.js Lambda 函数
+- [x] 在 markTaskFailed 中使用 EventBridge PutEventsCommand
+- [x] 在 template.yaml 添加 RetryHandlerFunction
+- [x] 在 template.yaml 添加 EventBridge Rule
+- [x] 配置 PanelWorker Lambda 权限（允许 PutEvents）
+- [x] 移除 Lambda 内 sleep 逻辑
+
+**完成时间**: 2025年10月22日
 
 **关键代码**:
 ```javascript
@@ -249,7 +250,7 @@ curl -X POST .../characters/char1/configurations/cfg1/generate-portrait
 | 问题 | 优先级 | 工作量 | 状态 | 开始时间 | 完成时间 |
 |------|--------|--------|------|----------|----------|
 | 问题 1: 多图上传流程 | CRITICAL | 1-2h | ✅ 已完成 | 14:00 | 14:30 |
-| 问题 2: Lambda 超时风险 | HIGH | 2-3h | 🔴 待开始 | - | - |
+| 问题 2: Lambda 超时风险 | HIGH | 2-3h | ✅ 已完成 | 14:30 | 15:15 |
 | 问题 3: 姿态/标签整合 | MEDIUM | 2-3h | 🔴 待开始 | - | - |
 | 问题 4: 幂等控制 | MEDIUM | 1-2h | 🔴 待开始 | - | - |
 
@@ -266,8 +267,8 @@ curl -X POST .../characters/char1/configurations/cfg1/generate-portrait
 3. � 提交: `fix(CRITICAL): 添加多图上传流程校验和回滚`
 
 ### Phase 2: HIGH 修复 (今天完成)
-4. 🔴 修复问题 2: Lambda 超时风险
-5. 🔴 提交: `fix(HIGH): 使用 EventBridge 替代 Lambda sleep`
+4. ✅ 修复问题 2: Lambda 超时风险
+5. � 提交: `fix(HIGH): 使用 EventBridge 替代 Lambda sleep`
 
 ### Phase 3: MEDIUM 修复 (明天完成)
 6. 🔴 修复问题 3: 姿态/标签整合
