@@ -45,15 +45,13 @@ class ImagenAdapter {
   }
 
   /**
-   * Generate an image from prompt + reference data.
-   *
-   * @param {object} options
-   * @param {string} options.prompt
-   * @param {string} [options.negativePrompt]
-   * @param {string[]} [options.referenceImages]
-   * @param {string} [options.mode='preview'] - preview | hd
-   * @param {string} [options.aspectRatio='16:9']
-   * @returns {Promise<{buffer: Buffer, mimeType: string, safetyAttributes: object, requestId: string}>}
+   * Generate images via Gemini REST API.
+   * @param {Object} options
+   * @param {string} options.prompt - Generation prompt
+   * @param {string} [options.negativePrompt] - Negative prompt
+   * @param {string} [options.aspectRatio='16:9'] - Aspect ratio
+   * @param {string[]} [options.referenceImages] - S3 URIs or base64-encoded reference images
+   * @returns {Promise<{buffer: Buffer, mimeType: string, safetyAttributes: Object}|null>}
    */
   async generate(options = {}) {
     if (this.shouldMock()) {
@@ -123,18 +121,49 @@ class ImagenAdapter {
       throw new Error('Gemini API key not configured');
     }
 
-    const { prompt, negativePrompt, aspectRatio = '16:9' } = options;
+    const { prompt, negativePrompt, aspectRatio = '16:9', referenceImages = [] } = options;
     if (!prompt) {
       throw new Error('ImagenAdapter.generate requires a prompt');
     }
 
     const url = `${this.baseUrl}/v1beta/models/${this.model}:generateImages?key=${this.apiKey}`;
+    
+    // Build contents array: text prompt + reference images
     const contents = [
       {
         role: 'user',
         parts: [{ text: prompt }]
       }
     ];
+
+    // Add reference images to contents (max 3 for best performance)
+    if (referenceImages && referenceImages.length > 0) {
+      const imageLimit = Math.min(referenceImages.length, 3); // Gemini API 最多支持 3 张参考图
+      this.logger?.info?.(`[ImagenAdapter] Adding ${imageLimit} reference images to generation`);
+      
+      for (let i = 0; i < imageLimit; i++) {
+        const refImage = referenceImages[i];
+        
+        // If it's a base64 string, add directly
+        if (refImage.startsWith('data:image/') || refImage.startsWith('/9j/')) {
+          const base64Data = refImage.includes('base64,') 
+            ? refImage.split('base64,')[1] 
+            : refImage;
+          
+          contents[0].parts.push({
+            inline_data: {
+              mime_type: 'image/png',
+              data: base64Data
+            }
+          });
+        }
+        // If it's an S3 URI, we need to download it first
+        else if (refImage.startsWith('s3://')) {
+          this.logger?.warn?.(`[ImagenAdapter] S3 URI detected: ${refImage}. You should convert to base64 before calling generate()`);
+          // Note: Caller should handle S3 → base64 conversion
+        }
+      }
+    }
 
     const body = {
       contents,
