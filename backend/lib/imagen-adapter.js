@@ -72,25 +72,135 @@ class ImagenAdapter {
   }
 
   /**
-   * Imagen edit (inpaint) placeholder implementation.
+   * Edit an existing image with Gemini API (image + text to image).
+   * Uses Gemini's "semantic masking" - describe what to change in the prompt.
+   * @param {Object} options - Editing options
+   * @param {string} options.prompt - Text instruction for editing (e.g., "change only the car to red, keep everything else the same")
+   * @param {Buffer|string} options.sourceImage - Original image (Buffer or base64)
+   * @param {string} [options.negativePrompt] - Negative prompt for editing
+   * @param {string} [options.aspectRatio='1:1'] - Aspect ratio (will match source if not specified)
+   * @returns {Promise<{buffer: Buffer, mimeType: string, safetyAttributes: Object}>}
    */
   async edit(options = {}) {
     if (this.shouldMock()) {
       return this.generatePlaceholder(options);
     }
-    // Editing is not yet implemented via HTTP fallback - return placeholder.
-    this.logger?.warn?.('[ImagenAdapter] edit() falling back to placeholder (remote edit not implemented)');
-    return this.generatePlaceholder(options);
+
+    const { prompt, sourceImage, negativePrompt, aspectRatio = '1:1' } = options;
+
+    if (!prompt || !sourceImage) {
+      throw new Error('[ImagenAdapter] edit() requires both prompt and sourceImage');
+    }
+
+    // Convert source image to base64 if it's a Buffer
+    let base64Image;
+    if (Buffer.isBuffer(sourceImage)) {
+      base64Image = sourceImage.toString('base64');
+    } else if (typeof sourceImage === 'string') {
+      // Already base64 or data URI
+      base64Image = sourceImage.includes('base64,') 
+        ? sourceImage.split('base64,')[1] 
+        : sourceImage;
+    } else {
+      throw new Error('[ImagenAdapter] sourceImage must be Buffer or base64 string');
+    }
+
+    this.logger?.info?.(`[ImagenAdapter] Editing image with prompt: "${truncate(prompt, 100)}"`);
+
+    // Build contents array: prompt + source image
+    const contents = [{
+      role: 'user',
+      parts: [
+        { text: prompt },
+        {
+          inline_data: {
+            mime_type: 'image/png',
+            data: base64Image
+          }
+        }
+      ]
+    }];
+
+    // Call Gemini API (same as generate, but with image input)
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${this.model}:generateContent?key=${this.apiKey}`;
+
+    const body = {
+      contents,
+      generationConfig: {
+        responseModalities: ['Image'],
+        outputOptions: {
+          aspectRatio: aspectRatio,
+        },
+        ...(negativePrompt && {
+          negativePrompt: {
+            text: negativePrompt
+          }
+        })
+      }
+    };
+
+    const res = await this.fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(body)
+    });
+
+    if (!res.ok) {
+      const text = await res.text();
+      throw new Error(`Gemini edit API error (${res.status}): ${text}`);
+    }
+
+    const payload = await res.json();
+    
+    // Extract image from response
+    const part = payload?.candidates?.[0]?.content?.parts?.find(p => p.inline_data);
+    if (!part || !part.inline_data || !part.inline_data.data) {
+      throw new Error('[ImagenAdapter] No image data in edit response');
+    }
+
+    const base64 = part.inline_data.data;
+    const mimeType = part.inline_data.mime_type || 'image/png';
+
+    this.logger?.info?.('[ImagenAdapter] Image editing successful');
+
+    return {
+      buffer: Buffer.from(base64, 'base64'),
+      mimeType: mimeType,
+      safetyAttributes: payload?.candidates?.[0]?.safetyRatings || {},
+      requestId: `gemini-edit-${Date.now()}`
+    };
   }
 
   /**
-   * Upload to Google Cloud Storage (placeholder that returns deterministic URI).
+   * Upload image to storage (S3, not GCS).
+   * Note: Gemini API doesn't require GCS upload - use base64 inline_data instead.
+   * This method is kept for backward compatibility.
+   * @param {Buffer} buffer - Image buffer
+   * @param {string} filename - Filename for the image
+   * @returns {Promise<string>} S3 URI (s3://bucket/key)
    */
   async uploadToGCS(buffer, filename) {
-    const safeName = filename || `buffer-${Date.now()}.png`;
-    const digest = crypto.createHash('sha1').update(buffer || PLACEHOLDER_IMAGE).digest('hex').slice(0, 12);
-    const bucket = this.projectId ? `${this.projectId}-imagen-cache` : 'local-imagen-cache';
-    return `gs://${bucket}/${safeName.replace(/\s+/g, '-').toLowerCase()}-${digest}.png`;
+    // For now, we use S3 instead of GCS
+    // Import s3-utils dynamically to avoid circular dependency
+    const { uploadImage } = require('./s3-utils');
+    
+    const safeName = filename || `imagen-${Date.now()}.png`;
+    const s3Key = `imagen-uploads/${safeName.replace(/\s+/g, '-').toLowerCase()}`;
+    
+    this.logger?.info?.(`[ImagenAdapter] Uploading to S3: ${s3Key}`);
+    
+    const s3Uri = await uploadImage(s3Key, buffer, {
+      contentType: 'image/png',
+      metadata: {
+        'uploaded-by': 'imagen-adapter',
+        'original-filename': filename
+      }
+    });
+    
+    this.logger?.info?.(`[ImagenAdapter] Upload successful: ${s3Uri}`);
+    return s3Uri;
   }
 
   shouldMock() {

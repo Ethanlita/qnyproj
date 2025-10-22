@@ -4,6 +4,7 @@ const {
   GetCommand,
   UpdateCommand
 } = require('@aws-sdk/lib-dynamodb');
+const { SQSClient, SendMessageCommand } = require('@aws-sdk/client-sqs');
 const { unmarshall } = require('@aws-sdk/util-dynamodb');
 const { uploadImage } = require('../../lib/s3-utils');
 const { s3ImagesToBase64 } = require('../../lib/s3-image-utils');
@@ -13,8 +14,10 @@ const { getGeminiConfig } = require('../../lib/ai-secrets');
 
 const dynamoClient = new DynamoDBClient({});
 const docClient = DynamoDBDocumentClient.from(dynamoClient);
+const sqsClient = new SQSClient({});
 
 const TABLE_NAME = process.env.TABLE_NAME;
+const PANEL_TASK_QUEUE_URL = process.env.PANEL_TASK_QUEUE_URL;
 const MAX_ATTEMPTS = 3;
 
 let imagenAdapterPromise = null;
@@ -290,7 +293,66 @@ async function finalizeSuccess(task, panel, s3Key) {
 
 async function markTaskFailed(task, reason) {
   const timestamp = new Date().toISOString();
-  const updatedRetry = Math.min((task.retryCount || 0) + 1, MAX_ATTEMPTS);
+  const currentRetry = task.retryCount || 0;
+  const updatedRetry = Math.min(currentRetry + 1, MAX_ATTEMPTS);
+  
+  console.log(`[PanelWorker] Task ${task.panelId} failed (attempt ${currentRetry + 1}/${MAX_ATTEMPTS}): ${reason}`);
+
+  // Check if we should retry
+  if (currentRetry < MAX_ATTEMPTS - 1) {
+    // Requeue the task for retry
+    console.log(`[PanelWorker] Requeuing task ${task.panelId} for retry ${updatedRetry}/${MAX_ATTEMPTS}`);
+    
+    try {
+      // Calculate exponential backoff delay (10s, 20s, 40s...)
+      const delaySeconds = Math.pow(2, currentRetry) * 10;
+      
+      await sqsClient.send(
+        new SendMessageCommand({
+          QueueUrl: PANEL_TASK_QUEUE_URL,
+          MessageBody: JSON.stringify({
+            ...task,
+            retryCount: updatedRetry,
+            lastError: reason,
+            lastAttemptAt: timestamp
+          }),
+          DelaySeconds: Math.min(delaySeconds, 900) // Max 15 minutes
+        })
+      );
+      
+      console.log(`[PanelWorker] Task ${task.panelId} requeued with ${delaySeconds}s delay`);
+      
+      // Update task status to 'pending' for retry
+      await docClient.send(
+        new UpdateCommand({
+          TableName: TABLE_NAME,
+          Key: {
+            PK: task.PK,
+            SK: task.SK
+          },
+          UpdateExpression: 'SET #status = :pending, updatedAt = :updatedAt, errorMessage = :error, retryCount = :retryCount, lastAttemptAt = :lastAttemptAt',
+          ExpressionAttributeNames: {
+            '#status': 'status'
+          },
+          ExpressionAttributeValues: {
+            ':pending': 'pending',  // Changed to 'pending' for retry
+            ':updatedAt': timestamp,
+            ':error': reason,
+            ':retryCount': updatedRetry,
+            ':lastAttemptAt': timestamp
+          }
+        })
+      );
+      
+      return; // Don't mark job as failed yet
+    } catch (requeueError) {
+      console.error(`[PanelWorker] Failed to requeue task ${task.panelId}:`, requeueError);
+      // Fall through to mark as failed
+    }
+  }
+  
+  // Final failure after MAX_ATTEMPTS
+  console.log(`[PanelWorker] Task ${task.panelId} permanently failed after ${MAX_ATTEMPTS} attempts`);
 
   await docClient.send(
     new UpdateCommand({
