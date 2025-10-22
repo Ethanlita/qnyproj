@@ -14,9 +14,7 @@ const ImagenAdapter = require('../../lib/imagen-adapter');
 const { getGeminiConfig } = require('../../lib/ai-secrets');
 
 const dynamoClient = new DynamoDBClient({});
-const docClient = DynamoDBDocumentClient.from(ddbClient);
-const secretsClient = new SecretsManagerClient({});
-const s3Client = new S3Client({});
+const docClient = DynamoDBDocumentClient.from(dynamoClient);
 
 const TABLE_NAME = process.env.TABLE_NAME;
 const ASSETS_BUCKET = process.env.ASSETS_BUCKET;
