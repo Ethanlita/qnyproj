@@ -1,32 +1,58 @@
 import { useEffect, useState } from 'react';
 import { NovelsService, StoryboardsService, JobsService } from '../api/generated';
 import type { Novel, Storyboard } from '../api/generated';
+import { useNavigate, useParams, Link } from 'react-router-dom';
+import { useJobMonitor } from '../hooks/useJobMonitor';
 
 /**
  * 作品详情页
  */
 export function NovelDetailPage() {
-  const id = 'novel-001'; // Mock ID for testing (在 Tab 模式下使用固定ID)
+  const { id: routeId } = useParams<{ id: string }>();
+  const navigate = useNavigate();
+  const novelId = routeId || '';
   const [novel, setNovel] = useState<Novel | null>(null);
   const [storyboard, setStoryboard] = useState<Storyboard | null>(null);
   const [analyzing, setAnalyzing] = useState(false);
+  const [generatingMode, setGeneratingMode] = useState<'preview' | 'hd'>('preview');
+  const [panelError, setPanelError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const {
+    jobState: panelJobState,
+    start: startPanelJob,
+    stop: stopPanelJob
+  } = useJobMonitor({
+    onCompleted: async () => {
+      await loadNovel();
+    },
+    onFailed: async ({ error: jobError }) => {
+      setPanelError(jobError || '任务失败');
+    }
+  });
 
   useEffect(() => {
+    if (!novelId) {
+      setNovel(null);
+      setStoryboard(null);
+      return;
+    }
     loadNovel();
-  }, []);
+  }, [novelId]);
 
   const loadNovel = async () => {
+    if (!novelId) return;
     try {
       setLoading(true);
-      const data = await NovelsService.getNovels({ id: id! });
+      const data = await NovelsService.getNovels({ id: novelId });
       setNovel(data);
 
       // 如果有分镜，加载分镜数据
       if (data.storyboardId) {
         const sb = await StoryboardsService.getStoryboards({ id: data.storyboardId });
         setStoryboard(sb);
+      } else {
+        setStoryboard(null);
       }
     } catch (err: any) {
       console.error('Failed to load novel:', err);
@@ -37,14 +63,14 @@ export function NovelDetailPage() {
   };
 
   const handleAnalyze = async () => {
-    if (!id) return;
+    if (!novelId) return;
 
     setAnalyzing(true);
     setError(null);
 
     try {
       const job = await NovelsService.postNovelsAnalyze({
-        id,
+        id: novelId,
         requestBody: {}
       });
       console.log('Analysis job started:', job);
@@ -73,6 +99,32 @@ export function NovelDetailPage() {
     }
   };
 
+  const handleGeneratePanels = async () => {
+    if (!storyboard) {
+      alert('当前作品尚未生成分镜');
+      return;
+    }
+    if (!storyboard.id) return;
+
+    setPanelError(null);
+    stopPanelJob();
+    try {
+      const response = await StoryboardsService.postStoryboardsGenerate({
+        id: storyboard.id,
+        mode: generatingMode
+      });
+      if (response.jobId) {
+        startPanelJob(response.jobId);
+      } else {
+        setPanelError('未返回任务ID');
+      }
+    } catch (err: any) {
+      console.error('Generate panels failed:', err);
+      setPanelError(err.message);
+      alert(`面板生成失败：${err.message}`);
+    }
+  };
+
   if (loading) {
     return <div style={{ padding: '20px' }}>加载中...</div>;
   }
@@ -82,7 +134,25 @@ export function NovelDetailPage() {
   }
 
   if (!novel) {
-    return <div style={{ padding: '20px' }}>作品不存在</div>;
+    return (
+      <div style={{ padding: '20px' }}>
+        <p>作品不存在或未指定 ID。</p>
+        <button
+          onClick={() => navigate('/')}
+          style={{
+            marginTop: '12px',
+            padding: '10px 20px',
+            backgroundColor: '#007bff',
+            color: '#fff',
+            border: 'none',
+            borderRadius: '4px',
+            cursor: 'pointer'
+          }}
+        >
+          返回首页
+        </button>
+      </div>
+    );
   }
 
   return (
@@ -171,6 +241,66 @@ export function NovelDetailPage() {
         )}
       </div>
 
+      {storyboard && (
+        <div style={{
+          padding: '16px',
+          borderRadius: '8px',
+          border: '1px solid #e0e0e0',
+          marginBottom: '20px',
+          backgroundColor: '#fafafa'
+        }}>
+          <h3 style={{ marginTop: 0 }}>🖼️ 批量生成面板</h3>
+          <p style={{ color: '#666', fontSize: '14px' }}>
+            当前模式：{generatingMode === 'preview' ? '预览 (512×288)' : '高清 (1920×1080)'}
+          </p>
+          <div style={{ display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
+            <select
+              value={generatingMode}
+              onChange={(e) => setGeneratingMode(e.target.value as 'preview' | 'hd')}
+              style={{
+                padding: '8px 12px',
+                borderRadius: '4px',
+                border: '1px solid #ccc',
+                fontSize: '14px'
+              }}
+              disabled={panelJobState.status === 'processing'}
+            >
+              <option value="preview">预览模式</option>
+              <option value="hd">高清模式</option>
+            </select>
+            <button
+              onClick={handleGeneratePanels}
+              disabled={panelJobState.status === 'processing'}
+              style={{
+                padding: '10px 20px',
+                backgroundColor: panelJobState.status === 'processing' ? '#ccc' : '#6f42c1',
+                color: '#fff',
+                border: 'none',
+                borderRadius: '4px',
+                cursor: panelJobState.status === 'processing' ? 'not-allowed' : 'pointer'
+              }}
+            >
+              {panelJobState.status === 'processing' ? '生成中...' : '开始生成面板'}
+            </button>
+            {panelJobState.status === 'processing' && panelJobState.jobId && (
+              <span style={{ color: '#007bff', fontSize: '13px' }}>
+                正在生成，Job ID: {panelJobState.jobId}
+              </span>
+            )}
+            {panelError && (
+              <span style={{ color: '#d9534f', fontSize: '13px' }}>
+                生成失败：{panelError}
+              </span>
+            )}
+            {panelJobState.status === 'completed' && (
+              <span style={{ color: '#28a745', fontSize: '13px' }}>
+                ✅ 面板生成完成，预览已刷新
+              </span>
+            )}
+          </div>
+        </div>
+      )}
+
       {storyboard && storyboard.panels && (
         <div>
           <h2>面板预览</h2>
@@ -212,6 +342,26 @@ export function NovelDetailPage() {
                 <p style={{ fontSize: '12px', color: '#666', margin: 0 }}>
                   {panel.content?.scene?.substring(0, 50)}...
                 </p>
+                {(panel as any).characters && (panel as any).characters.length > 0 && (
+                  <div style={{ marginTop: '8px', display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                    {(panel as any).characters.map((ch: any) => (
+                      <Link
+                        key={ch.charId}
+                        to={`/characters/${ch.charId}`}
+                        style={{
+                          fontSize: '11px',
+                          backgroundColor: '#eef',
+                          padding: '2px 6px',
+                          borderRadius: '4px',
+                          textDecoration: 'none',
+                          color: '#445'
+                        }}
+                      >
+                        {ch.name || ch.charId}
+                      </Link>
+                    ))}
+                  </div>
+                )}
               </div>
             ))}
           </div>
@@ -220,4 +370,3 @@ export function NovelDetailPage() {
     </div>
   );
 }
-
