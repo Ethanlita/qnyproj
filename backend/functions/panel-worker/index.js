@@ -298,14 +298,16 @@ async function finalizeSuccess(task, panel, s3Key) {
 async function markTaskFailed(task, reason) {
   const timestamp = new Date().toISOString();
   const currentRetry = task.retryCount || 0;
-  const updatedRetry = Math.min(currentRetry + 1, MAX_ATTEMPTS);
   
   console.log(`[PanelWorker] Task ${task.panelId} failed (attempt ${currentRetry + 1}/${MAX_ATTEMPTS}): ${reason}`);
 
-  // Check if we should retry
-  if (currentRetry < MAX_ATTEMPTS - 1) {
-    // ⭐ 问题 2 修复: 使用 EventBridge 替代 Lambda 内 sleep
-    console.log(`[PanelWorker] Scheduling retry for task ${task.panelId} (retry ${updatedRetry}/${MAX_ATTEMPTS})`);
+  // ⭐ 代码评审修复: 确保总尝试次数 = MAX_ATTEMPTS
+  // 修改前: if (currentRetry < MAX_ATTEMPTS - 1)  // 会导致 4 次尝试
+  // 修改后: if (currentRetry + 1 < MAX_ATTEMPTS)  // 确保 3 次尝试
+  if (currentRetry + 1 < MAX_ATTEMPTS) {
+    // 使用 EventBridge 替代 Lambda 内 sleep
+    const nextRetry = currentRetry + 1;
+    console.log(`[PanelWorker] Scheduling retry for task ${task.panelId} (retry ${nextRetry}/${MAX_ATTEMPTS})`);
     
     try {
       // Calculate exponential backoff delay (10s, 20s, 40s...)
@@ -335,7 +337,7 @@ async function markTaskFailed(task, reason) {
               Detail: JSON.stringify({
                 ...task,
                 status: 'pending',
-                retryCount: updatedRetry,
+                retryCount: nextRetry,
                 lastError: reason,
                 lastAttemptAt: timestamp,
                 retryAt: retryAt.toISOString(),

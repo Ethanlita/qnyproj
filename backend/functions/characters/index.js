@@ -225,7 +225,14 @@ exports.handler = async (event) => {
       } catch (error) {
         // ⭐ 问题 1 修复: 异常回滚机制（删除已上传的文件）
         console.error('[CharactersFunction] Upload failed, rolling back:', error);
-        await rollbackUploadedFiles(uploadedKeys);
+        const rollbackFailures = await rollbackUploadedFiles(uploadedKeys);
+        
+        // 如果回滚有失败，记录到错误信息中
+        if (rollbackFailures.length > 0) {
+          console.error('[CharactersFunction] Some files failed to rollback, manual cleanup may be required:', rollbackFailures);
+          error.rollbackFailures = rollbackFailures;  // 附加到错误对象
+        }
+        
         throw error;
       }
     }
@@ -617,26 +624,41 @@ function validateUploadedFiles(files) {
 
 /**
  * Rollback: Delete uploaded files from S3 on error.
+ * ⭐ 代码评审改进: 返回回滚失败列表，便于人工清理
+ * @param {string[]} s3Keys - S3 keys to delete
+ * @returns {Promise<Array<{key: string, error: string}>>} 失败的删除操作列表
  */
 async function rollbackUploadedFiles(s3Keys) {
   if (!s3Keys || s3Keys.length === 0) {
-    return;
+    return [];
   }
 
   console.log(`[CharactersFunction] Rolling back ${s3Keys.length} uploaded files...`);
 
   const { deleteImage } = require('../../lib/s3-utils');
+  const failures = [];
+  
   const deletePromises = s3Keys.map(async (key) => {
     try {
       await deleteImage(key);
       console.log(`[CharactersFunction] Deleted: ${key}`);
     } catch (error) {
-      console.error(`[CharactersFunction] Failed to delete ${key}:`, error);
+      const errorMessage = error.message || String(error);
+      console.error(`[CharactersFunction] Failed to delete ${key}:`, errorMessage);
+      failures.push({ key, error: errorMessage });
       // Continue deleting other files
     }
   });
 
   await Promise.all(deletePromises);
-  console.log('[CharactersFunction] Rollback completed');
+  
+  if (failures.length > 0) {
+    console.error(`[CharactersFunction] Rollback completed with ${failures.length} failures:`, JSON.stringify(failures));
+  } else {
+    console.log('[CharactersFunction] Rollback completed successfully');
+  }
+  
+  return failures;
 }
+
 

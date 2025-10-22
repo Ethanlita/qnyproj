@@ -1,6 +1,6 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
-import { copyFileSync } from 'fs'
+import { copyFileSync, existsSync } from 'fs'
 import { resolve } from 'path'
 
 // https://vite.dev/config/
@@ -20,6 +20,26 @@ export default defineConfig({
           console.log('✅ Copied openapi.yaml to public/')
         } catch (err) {
           console.warn('⚠️ Could not copy openapi.yaml:', err)
+        }
+      },
+    },
+    // GitHub Pages SPA fallback: duplicate index.html to 404.html after build
+    {
+      name: 'gh-pages-spa-fallback',
+      closeBundle() {
+        const indexPath = resolve(__dirname, 'dist/index.html')
+        const notFoundPath = resolve(__dirname, 'dist/404.html')
+
+        if (!existsSync(indexPath)) {
+          console.warn('⚠️ Could not find dist/index.html to copy for 404 fallback')
+          return
+        }
+
+        try {
+          copyFileSync(indexPath, notFoundPath)
+          console.log('✅ Copied dist/index.html to dist/404.html for GitHub Pages routing fallback')
+        } catch (err) {
+          console.warn('⚠️ Failed to create dist/404.html fallback:', err)
         }
       },
     },

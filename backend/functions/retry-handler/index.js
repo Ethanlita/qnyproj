@@ -63,6 +63,16 @@ exports.handler = async (event) => {
  */
 async function retryTask(task) {
   const timestamp = new Date().toISOString();
+  const MAX_ATTEMPTS = 3; // 总尝试次数（初次 + 2次重试）
+  const currentRetry = task.retryCount || 0;
+
+  // ⭐ 问题修复: 检查重试次数护栏，防止超过最大尝试次数
+  if (currentRetry >= MAX_ATTEMPTS - 1) {
+    console.warn(
+      `[RetryHandler] Task ${task.panelId} has reached max attempts (${currentRetry + 1}/${MAX_ATTEMPTS}), skipping retry`
+    );
+    return; // 不重新插入，任务将保持 failed 状态
+  }
 
   // Re-insert with updated metadata
   const updatedTask = {
@@ -74,7 +84,7 @@ async function retryTask(task) {
 
   console.log(
     `[RetryHandler] Reinserting task ${task.panelId} ` +
-    `(retry ${task.retryCount || 0}/${task.maxRetries || 3})`
+    `(retry ${currentRetry}/${MAX_ATTEMPTS - 1})`
   );
 
   await docClient.send(
