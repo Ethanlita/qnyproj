@@ -87,8 +87,15 @@ exports.handler = async (event) => {
     const adapter = await getImagenAdapter();
     
     // Convert S3 reference images to base64 (parallel download)
-    const referenceImagesBase64 = config.referenceImagesS3 && config.referenceImagesS3.length > 0
-      ? await s3ImagesToBase64(config.referenceImagesS3)
+    // referenceImagesS3 is array of objects: [{ s3Key: 'path/to/image.png' }, ...]
+    const referenceS3Uris = (config.referenceImagesS3 || []).map(item => {
+      // Extract s3Key from object and convert to s3:// URI
+      const key = typeof item === 'string' ? item : item.s3Key;
+      return key.startsWith('s3://') ? key : `s3://${process.env.ASSETS_BUCKET}/${key}`;
+    });
+    
+    const referenceImagesBase64 = referenceS3Uris.length > 0
+      ? await s3ImagesToBase64(referenceS3Uris)
       : [];
     
     console.log(`[GeneratePortrait] Downloaded ${referenceImagesBase64.length} reference images from S3`);

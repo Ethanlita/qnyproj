@@ -2,9 +2,10 @@ const { DynamoDBClient } = require('@aws-sdk/client-dynamodb');
 const {
   DynamoDBDocumentClient,
   GetCommand,
-  UpdateCommand
+  UpdateCommand,
+  DeleteCommand,
+  PutCommand
 } = require('@aws-sdk/lib-dynamodb');
-const { SQSClient, SendMessageCommand } = require('@aws-sdk/client-sqs');
 const { unmarshall } = require('@aws-sdk/util-dynamodb');
 const { uploadImage } = require('../../lib/s3-utils');
 const { s3ImagesToBase64 } = require('../../lib/s3-image-utils');
@@ -13,11 +14,14 @@ const ImagenAdapter = require('../../lib/imagen-adapter');
 const { getGeminiConfig } = require('../../lib/ai-secrets');
 
 const dynamoClient = new DynamoDBClient({});
-const docClient = DynamoDBDocumentClient.from(dynamoClient);
-const sqsClient = new SQSClient({});
+const docClient = DynamoDBDocumentClient.from(ddbClient);
+const secretsClient = new SecretsManagerClient({});
+const s3Client = new S3Client({});
 
 const TABLE_NAME = process.env.TABLE_NAME;
-const PANEL_TASK_QUEUE_URL = process.env.PANEL_TASK_QUEUE_URL;
+const ASSETS_BUCKET = process.env.ASSETS_BUCKET;
+const ENVIRONMENT = process.env.ENVIRONMENT || 'dev';
+const QWEN_SECRET_ARN = process.env.QWEN_SECRET_ARN;
 const MAX_ATTEMPTS = 3;
 
 let imagenAdapterPromise = null;
@@ -300,53 +304,52 @@ async function markTaskFailed(task, reason) {
 
   // Check if we should retry
   if (currentRetry < MAX_ATTEMPTS - 1) {
-    // Requeue the task for retry
-    console.log(`[PanelWorker] Requeuing task ${task.panelId} for retry ${updatedRetry}/${MAX_ATTEMPTS}`);
+    // Retry by DELETE + INSERT to re-trigger DynamoDB Stream
+    console.log(`[PanelWorker] Retrying task ${task.panelId} (retry ${updatedRetry}/${MAX_ATTEMPTS})`);
     
     try {
       // Calculate exponential backoff delay (10s, 20s, 40s...)
       const delaySeconds = Math.pow(2, currentRetry) * 10;
+      const retryAt = new Date(Date.now() + delaySeconds * 1000).toISOString();
       
-      await sqsClient.send(
-        new SendMessageCommand({
-          QueueUrl: PANEL_TASK_QUEUE_URL,
-          MessageBody: JSON.stringify({
-            ...task,
-            retryCount: updatedRetry,
-            lastError: reason,
-            lastAttemptAt: timestamp
-          }),
-          DelaySeconds: Math.min(delaySeconds, 900) // Max 15 minutes
-        })
-      );
-      
-      console.log(`[PanelWorker] Task ${task.panelId} requeued with ${delaySeconds}s delay`);
-      
-      // Update task status to 'pending' for retry
+      // Delete current task record
       await docClient.send(
-        new UpdateCommand({
+        new DeleteCommand({
           TableName: TABLE_NAME,
           Key: {
             PK: task.PK,
             SK: task.SK
-          },
-          UpdateExpression: 'SET #status = :pending, updatedAt = :updatedAt, errorMessage = :error, retryCount = :retryCount, lastAttemptAt = :lastAttemptAt',
-          ExpressionAttributeNames: {
-            '#status': 'status'
-          },
-          ExpressionAttributeValues: {
-            ':pending': 'pending',  // Changed to 'pending' for retry
-            ':updatedAt': timestamp,
-            ':error': reason,
-            ':retryCount': updatedRetry,
-            ':lastAttemptAt': timestamp
           }
         })
       );
       
+      // Wait for the delay period before re-inserting
+      console.log(`[PanelWorker] Task ${task.panelId} will be retried at ${retryAt} (delay: ${delaySeconds}s)`);
+      
+      // Re-insert task with updated retry count to trigger Stream INSERT event
+      // Note: In production, use a separate retry queue/scheduler service
+      // For now, we re-insert immediately and rely on Lambda concurrency
+      await new Promise(resolve => setTimeout(resolve, Math.min(delaySeconds * 1000, 15000))); // Max 15s in-Lambda delay
+      
+      await docClient.send(
+        new PutCommand({
+          TableName: TABLE_NAME,
+          Item: {
+            ...task,
+            status: 'pending',
+            retryCount: updatedRetry,
+            lastError: reason,
+            lastAttemptAt: timestamp,
+            retryAt,
+            updatedAt: new Date().toISOString()
+          }
+        })
+      );
+      
+      console.log(`[PanelWorker] Task ${task.panelId} re-inserted for retry`);
       return; // Don't mark job as failed yet
-    } catch (requeueError) {
-      console.error(`[PanelWorker] Failed to requeue task ${task.panelId}:`, requeueError);
+    } catch (retryError) {
+      console.error(`[PanelWorker] Failed to retry task ${task.panelId}:`, retryError);
       // Fall through to mark as failed
     }
   }

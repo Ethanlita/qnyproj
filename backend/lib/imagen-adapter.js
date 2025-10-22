@@ -254,21 +254,33 @@ class ImagenAdapter {
       for (let i = 0; i < imageLimit; i++) {
         const refImage = referenceImages[i];
         
-        // If it's a base64 string, add directly
-        if (refImage.startsWith('data:image/') || refImage.startsWith('/9j/')) {
-          const base64Data = refImage.includes('base64,') 
-            ? refImage.split('base64,')[1] 
-            : refImage;
+        // Check if it's a base64 string (with or without data URI prefix)
+        if (typeof refImage === 'string' && refImage.length > 100) {
+          let base64Data = refImage;
           
-          contents[0].parts.push({
-            inline_data: {
-              mime_type: 'image/png',
-              data: base64Data
-            }
-          });
+          // Remove data URI prefix if present
+          if (refImage.includes('base64,')) {
+            base64Data = refImage.split('base64,')[1];
+          }
+          // If it's already raw base64, use directly
+          // PNG starts with iVBOR, JPEG with /9j/, GIF with R0lGOD
+          else if (!refImage.startsWith('s3://') && !refImage.startsWith('http')) {
+            base64Data = refImage;
+          }
+          
+          // Only add if it looks like valid base64
+          if (base64Data && base64Data.length > 100 && !base64Data.startsWith('s3://')) {
+            contents[0].parts.push({
+              inline_data: {
+                mime_type: 'image/png',
+                data: base64Data
+              }
+            });
+            this.logger?.info?.(`[ImagenAdapter] Added reference image #${i + 1} (${base64Data.substring(0, 20)}...)`);
+          }
         }
-        // If it's an S3 URI, we need to download it first
-        else if (refImage.startsWith('s3://')) {
+        // If it's an S3 URI, warn that it should be converted first
+        else if (typeof refImage === 'string' && refImage.startsWith('s3://')) {
           this.logger?.warn?.(`[ImagenAdapter] S3 URI detected: ${refImage}. You should convert to base64 before calling generate()`);
           // Note: Caller should handle S3 → base64 conversion
         }
