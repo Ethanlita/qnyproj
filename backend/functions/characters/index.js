@@ -28,6 +28,11 @@ const TABLE_NAME = process.env.TABLE_NAME;
 const MAX_UPLOADS = 10;
 const DEFAULT_CONFIG_LIMIT = 100;
 
+// File upload validation constants
+const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
+const ALLOWED_MIME_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
+const ALLOWED_EXTENSIONS = ['.jpg', '.jpeg', '.png', '.webp'];
+
 /**
  * Main Lambda handler
  */
@@ -150,56 +155,79 @@ exports.handler = async (event) => {
         return errorResponse(400, `Too many files, maximum ${MAX_UPLOADS}`);
       }
 
-      const timestamp = new Date().toISOString();
-      const uploaded = [];
-
-      for (let idx = 0; idx < files.length; idx += 1) {
-        const file = files[idx];
-        const captionField = Array.isArray(fields.caption) ? fields.caption[idx] : fields.caption;
-        const caption = captionField || file.filename || `Reference ${idx + 1}`;
-
-        const key = `characters/${charId}/${configId}/refs/${Date.now()}-${idx}-${sanitizeFilename(
-          file.filename || 'image.png'
-        )}`;
-
-        await uploadImage(key, file.buffer, {
-          contentType: file.contentType || 'image/png',
-          metadata: {
-            'char-id': charId,
-            'config-id': configId,
-            caption
-          },
-          tagging: `Type=reference&Character=${charId}`
-        });
-
-        uploaded.push({
-          s3Key: key,
-          caption,
-          uploadedAt: timestamp
-        });
+      // ⭐ 问题 1 修复: 文件校验（在上传前验证所有文件）
+      const validationErrors = validateUploadedFiles(files);
+      if (validationErrors.length > 0) {
+        console.error('[CharactersFunction] File validation failed:', validationErrors);
+        return errorResponse(400, `File validation failed:\n${validationErrors.join('\n')}`);
       }
 
-      const newReferences = mergeReferenceImages(config.referenceImagesS3 || [], uploaded);
-      await docClient.send(
-        new UpdateCommand({
-          TableName: TABLE_NAME,
-          Key: buildConfigKey(charId, configId),
-          UpdateExpression: 'SET referenceImagesS3 = :refs, updatedAt = :updatedAt',
-          ExpressionAttributeValues: {
-            ':refs': newReferences,
-            ':updatedAt': new Date().toISOString()
-          }
-        })
-      );
+      const timestamp = new Date().toISOString();
+      const uploaded = [];
+      const uploadedKeys = []; // Track uploaded keys for rollback
 
-      const response = await Promise.all(
-        uploaded.map(async (item) => ({
-          ...item,
-          url: await getPresignedUrl(item.s3Key)
-        }))
-      );
+      try {
+        // Upload all files
+        for (let idx = 0; idx < files.length; idx += 1) {
+          const file = files[idx];
+          const captionField = Array.isArray(fields.caption) ? fields.caption[idx] : fields.caption;
+          const caption = captionField || file.filename || `Reference ${idx + 1}`;
 
-      return successResponse({ uploaded: response });
+          const key = `characters/${charId}/${configId}/refs/${Date.now()}-${idx}-${sanitizeFilename(
+            file.filename || 'image.png'
+          )}`;
+
+          console.log(`[CharactersFunction] Uploading file ${idx + 1}/${files.length}: ${key}`);
+
+          await uploadImage(key, file.buffer, {
+            contentType: file.contentType || 'image/png',
+            metadata: {
+              'char-id': charId,
+              'config-id': configId,
+              caption
+            },
+            tagging: `Type=reference&Character=${charId}`
+          });
+
+          uploadedKeys.push(key); // Track for potential rollback
+          uploaded.push({
+            s3Key: key,
+            caption,
+            uploadedAt: timestamp
+          });
+        }
+
+        // Update DynamoDB record
+        const newReferences = mergeReferenceImages(config.referenceImagesS3 || [], uploaded);
+        await docClient.send(
+          new UpdateCommand({
+            TableName: TABLE_NAME,
+            Key: buildConfigKey(charId, configId),
+            UpdateExpression: 'SET referenceImagesS3 = :refs, updatedAt = :updatedAt',
+            ExpressionAttributeValues: {
+              ':refs': newReferences,
+              ':updatedAt': new Date().toISOString()
+            }
+          })
+        );
+
+        console.log(`[CharactersFunction] Successfully uploaded ${uploaded.length} reference images`);
+
+        // Generate response with presigned URLs
+        const response = await Promise.all(
+          uploaded.map(async (item) => ({
+            ...item,
+            url: await getPresignedUrl(item.s3Key)
+          }))
+        );
+
+        return successResponse({ uploaded: response });
+      } catch (error) {
+        // ⭐ 问题 1 修复: 异常回滚机制（删除已上传的文件）
+        console.error('[CharactersFunction] Upload failed, rolling back:', error);
+        await rollbackUploadedFiles(uploadedKeys);
+        throw error;
+      }
     }
 
     return errorResponse(404, 'Not found');
@@ -542,5 +570,73 @@ function formatCharacterResponse(character) {
 
 function sanitizeFilename(name) {
   return name.replace(/[^a-zA-Z0-9._-]/g, '_');
+}
+
+/**
+ * Validate uploaded files (type, size, extension).
+ * Returns array of error messages (empty if all valid).
+ */
+function validateUploadedFiles(files) {
+  const errors = [];
+
+  for (let i = 0; i < files.length; i += 1) {
+    const file = files[i];
+    const fileIndex = i + 1;
+
+    // Check content type
+    if (!ALLOWED_MIME_TYPES.includes(file.contentType)) {
+      errors.push(
+        `File ${fileIndex} (${file.filename}): Invalid content type "${file.contentType}". ` +
+        `Allowed types: ${ALLOWED_MIME_TYPES.join(', ')}`
+      );
+    }
+
+    // Check file size
+    if (file.buffer && file.buffer.length > MAX_FILE_SIZE) {
+      const sizeMB = (file.buffer.length / (1024 * 1024)).toFixed(2);
+      const maxSizeMB = (MAX_FILE_SIZE / (1024 * 1024)).toFixed(0);
+      errors.push(
+        `File ${fileIndex} (${file.filename}): Size ${sizeMB}MB exceeds limit of ${maxSizeMB}MB`
+      );
+    }
+
+    // Check file extension
+    if (file.filename) {
+      const ext = file.filename.toLowerCase().match(/\.[^.]+$/)?.[0];
+      if (!ext || !ALLOWED_EXTENSIONS.includes(ext)) {
+        errors.push(
+          `File ${fileIndex} (${file.filename}): Invalid extension "${ext}". ` +
+          `Allowed extensions: ${ALLOWED_EXTENSIONS.join(', ')}`
+        );
+      }
+    }
+  }
+
+  return errors;
+}
+
+/**
+ * Rollback: Delete uploaded files from S3 on error.
+ */
+async function rollbackUploadedFiles(s3Keys) {
+  if (!s3Keys || s3Keys.length === 0) {
+    return;
+  }
+
+  console.log(`[CharactersFunction] Rolling back ${s3Keys.length} uploaded files...`);
+
+  const { deleteImage } = require('../../lib/s3-utils');
+  const deletePromises = s3Keys.map(async (key) => {
+    try {
+      await deleteImage(key);
+      console.log(`[CharactersFunction] Deleted: ${key}`);
+    } catch (error) {
+      console.error(`[CharactersFunction] Failed to delete ${key}:`, error);
+      // Continue deleting other files
+    }
+  });
+
+  await Promise.all(deletePromises);
+  console.log('[CharactersFunction] Rollback completed');
 }
 

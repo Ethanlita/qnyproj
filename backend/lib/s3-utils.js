@@ -6,7 +6,7 @@
  * and conventions (bucket defaults, tagging, etc).
  */
 
-const { S3Client, PutObjectCommand, GetObjectCommand, CopyObjectCommand } = require('@aws-sdk/client-s3');
+const { S3Client, PutObjectCommand, GetObjectCommand, CopyObjectCommand, DeleteObjectCommand } = require('@aws-sdk/client-s3');
 
 let presign;
 try {
@@ -117,9 +117,30 @@ async function copyObject(sourceKey, destinationKey, options = {}) {
   return `s3://${bucket}/${destinationKey}`;
 }
 
+/**
+ * Delete an object from S3.
+ *
+ * @param {string} key - Object key to delete
+ * @returns {Promise<void>}
+ */
+async function deleteImage(key) {
+  if (!key) {
+    throw new Error('deleteImage requires a key');
+  }
+
+  const bucket = getBucket();
+  const command = new DeleteObjectCommand({
+    Bucket: bucket,
+    Key: key
+  });
+
+  await s3Client.send(command);
+}
+
 module.exports = {
   s3Client,
   uploadImage,
   getPresignedUrl,
-  copyObject
+  copyObject,
+  deleteImage
 };
