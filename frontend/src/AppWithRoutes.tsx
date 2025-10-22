@@ -45,18 +45,11 @@ function AppWithRoutes() {
             </Link>
             
             <div style={{ flex: 1, display: 'flex', gap: '16px' }}>
-              <Link to="/" style={navLinkStyle}>
-                🏠 首页
-              </Link>
-              <Link to="/api-docs" style={navLinkStyle}>
-                📖 API 文档
-              </Link>
-              <Link to="/api-test" style={navLinkStyle}>
-                🧪 API 测试
-              </Link>
-              <Link to="/edge-probe" style={navLinkStyle}>
-                🌐 CDN 探测
-              </Link>
+              {isAuthenticated && (
+                <Link to="/" style={navLinkStyle}>
+                  🏠 我的作品
+                </Link>
+              )}
             </div>
 
             {/* 用户信息/登录按钮 */}
@@ -95,14 +88,25 @@ function AppWithRoutes() {
           {/* 公开路由 */}
           <Route path="/login" element={<LoginPage />} />
           <Route path="/callback" element={<CallbackPage />} />
+          
+          {/* 开发者工具 - 不显示在导航栏，通过直接访问 URL 使用 */}
           <Route path="/api-docs" element={<SwaggerDocs />} />
+          <Route path="/api-test" element={
+            <ProtectedRoute>
+              <ApiTest />
+            </ProtectedRoute>
+          } />
           <Route path="/edge-probe" element={<EdgeProbeDemo />} />
           
           {/* 受保护的路由 - 需要登录 */}
           <Route path="/" element={
-            <ProtectedRoute>
-              <NovelUploadPage />
-            </ProtectedRoute>
+            isAuthenticated ? (
+              <ProtectedRoute>
+                <NovelUploadPage />
+              </ProtectedRoute>
+            ) : (
+              <LoginPage />
+            )
           } />
           <Route path="/novels/:id" element={
             <ProtectedRoute>
@@ -112,11 +116,6 @@ function AppWithRoutes() {
           <Route path="/characters/:charId" element={
             <ProtectedRoute>
               <CharacterDetailPage />
-            </ProtectedRoute>
-          } />
-          <Route path="/api-test" element={
-            <ProtectedRoute>
-              <ApiTest />
             </ProtectedRoute>
           } />
         </Routes>

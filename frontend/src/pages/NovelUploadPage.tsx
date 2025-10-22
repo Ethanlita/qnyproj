@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { NovelsService } from '../api/generated';
 import type { Novel } from '../api/generated';
 
@@ -118,7 +119,7 @@ export function NovelUploadPage() {
           }}
         />
         <small style={{ color: '#666' }}>
-          支持最多 50k 字。可以直接粘贴或后续通过 S3 上传。
+          💡 提示：可以直接粘贴小说文本（最多 50k 字），也可以先创建作品留空，后续由管理员上传完整文件。
         </small>
       </div>
 
@@ -144,7 +145,18 @@ export function NovelUploadPage() {
           borderRadius: '4px',
           color: '#060'
         }}>
-          ✅ 作品创建成功! ID: {novel.id}
+          ✅ 作品创建成功! 
+          <Link 
+            to={`/novels/${novel.id}`}
+            style={{
+              marginLeft: '8px',
+              color: '#007bff',
+              textDecoration: 'underline',
+              fontWeight: 'bold'
+            }}
+          >
+            查看详情 →
+          </Link>
         </div>
       )}
 

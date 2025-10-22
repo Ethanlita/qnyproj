@@ -15,14 +15,22 @@ export function CallbackPage() {
   useEffect(() => {
     handleLoginCallback()
       .then((user) => {
+        console.log('[Callback] Login callback result:', user);
+        
         if (user) {
           // 获取登录前的页面路径
           const state = user.state as { returnUrl?: string } | undefined;
           const returnUrl = state?.returnUrl || '/';
           
+          console.log('[Callback] User state:', state);
           console.log('[Callback] Redirecting to:', returnUrl);
-          navigate(returnUrl, { replace: true });
+          
+          // 使用 setTimeout 确保 navigate 执行
+          setTimeout(() => {
+            navigate(returnUrl, { replace: true });
+          }, 100);
         } else {
+          console.error('[Callback] User is null or undefined');
           setError('登录失败：未获取到用户信息');
         }
       })
