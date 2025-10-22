@@ -40,6 +40,19 @@ exports.handler = async (event) => {
       return errorResponse(404, `Storyboard ${storyboardId} not found or has no panels`);
     }
 
+    // ⭐ 问题 4 修复: 幂等性检查（防止重复生成）
+    const jobType = mode === 'preview' ? 'generate_preview' : 'generate_hd';
+    const existingJob = await checkInProgressJob(storyboardId, jobType);
+    if (existingJob) {
+      console.log(`[GeneratePanels] Job already in progress: ${existingJob.id}`);
+      return errorResponse(409, 'A panel generation task is already in progress for this storyboard', {
+        jobId: existingJob.id,
+        status: existingJob.status,
+        mode: existingJob.mode,
+        progress: existingJob.progress
+      });
+    }
+
     const novelId = panels[0].novelId;
     const timestamp = new Date().toISOString();
     const timestampNumber = Date.now();
@@ -135,6 +148,35 @@ async function loadPanels(storyboardId) {
     })
   );
   return result.Items || [];
+}
+
+/**
+ * Check if there's an in-progress job for the same storyboard and type.
+ * Returns the existing job if found, null otherwise.
+ */
+async function checkInProgressJob(storyboardId, jobType) {
+  const result = await docClient.send(
+    new QueryCommand({
+      TableName: TABLE_NAME,
+      IndexName: 'GSI2',
+      KeyConditionExpression: 'GSI2PK = :pk',
+      FilterExpression: '#status IN (:pending, :inProgress) AND #type = :jobType',
+      ExpressionAttributeNames: {
+        '#status': 'status',
+        '#type': 'type'
+      },
+      ExpressionAttributeValues: {
+        ':pk': `STORYBOARD#${storyboardId}`,
+        ':pending': 'pending',
+        ':inProgress': 'in_progress',
+        ':jobType': jobType
+      },
+      Limit: 1,
+      ScanIndexForward: false // Most recent first
+    })
+  );
+
+  return result.Items?.[0] || null;
 }
 
 async function markPanelsInProgress(storyboardId, tasks, timestamp) {

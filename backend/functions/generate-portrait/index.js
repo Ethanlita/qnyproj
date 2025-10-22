@@ -48,6 +48,17 @@ exports.handler = async (event) => {
       return errorResponse(404, `Configuration ${configId} not found`);
     }
 
+    // ⭐ 问题 4 修复: 幂等性检查（防止重复生成）
+    const existingJob = await checkInProgressJob(charId, configId, 'generate_portrait');
+    if (existingJob) {
+      console.log(`[GeneratePortrait] Job already in progress: ${existingJob.id}`);
+      return errorResponse(409, 'A portrait generation task is already in progress for this configuration', {
+        jobId: existingJob.id,
+        status: existingJob.status,
+        progress: existingJob.progress
+      });
+    }
+
     const jobId = uuid();
     const createdAt = new Date().toISOString();
     const createdAtNumber = Date.now();
@@ -227,6 +238,35 @@ async function loadCharacter(charId) {
         ':sk': `CHAR#${charId}`
       },
       Limit: 1
+    })
+  );
+
+  return result.Items?.[0] || null;
+}
+
+/**
+ * Check if there's an in-progress job for the same character configuration.
+ * Returns the existing job if found, null otherwise.
+ */
+async function checkInProgressJob(charId, configId, jobType) {
+  const result = await docClient.send(
+    new QueryCommand({
+      TableName: TABLE_NAME,
+      IndexName: 'GSI2',
+      KeyConditionExpression: 'GSI2PK = :pk',
+      FilterExpression: '#status = :inProgress AND #type = :jobType AND configId = :configId',
+      ExpressionAttributeNames: {
+        '#status': 'status',
+        '#type': 'type'
+      },
+      ExpressionAttributeValues: {
+        ':pk': `CHAR#${charId}`,
+        ':inProgress': 'in_progress',
+        ':jobType': jobType,
+        ':configId': configId
+      },
+      Limit: 1,
+      ScanIndexForward: false // Most recent first
     })
   );
 
