@@ -269,6 +269,18 @@ async function createConfiguration(character, payload) {
   const configId = payload.id || uuid();
   const timestamp = new Date().toISOString();
 
+  // Check for duplicate configuration name (Medium #1 fix)
+  if (payload.name) {
+    const existingConfigs = await listConfigurations(character.id);
+    const duplicate = existingConfigs.find(cfg => 
+      cfg.name === payload.name && cfg.id !== configId
+    );
+    
+    if (duplicate) {
+      throw new Error(`Configuration with name "${payload.name}" already exists for this character`);
+    }
+  }
+
   const item = {
     PK: `CHAR#${character.id}`,
     SK: `CONFIG#${configId}`,
