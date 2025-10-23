@@ -216,6 +216,12 @@ Resources:
       StageName: dev
       EndpointConfiguration:
         Type: EDGE
+      Cors:
+        AllowOrigin: "'https://ethanlita.github.io'"
+        AllowMethods: "'GET,POST,PUT,DELETE,OPTIONS'"
+        AllowHeaders: "'Content-Type,Authorization,X-Amz-Date,X-Api-Key'"
+        MaxAge: "'3600'"
+        AllowCredentials: true
       DefinitionBody:
         openapi: 3.0.1
         info:
