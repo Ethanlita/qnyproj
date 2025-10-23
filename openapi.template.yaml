@@ -3,6 +3,21 @@ info:
   title: Novel-to-Comics API
   description: AI-powered novel to comic generation platform
   version: v1.0
+x-amazon-apigateway-cors:
+  allowOrigins:
+    - https://ethanlita.github.io
+    - http://localhost:5173
+    - http://localhost:4173
+  allowHeaders:
+    - Content-Type
+    - Authorization
+  allowMethods:
+    - GET
+    - POST
+    - PUT
+    - DELETE
+    - OPTIONS
+  maxAge: 3600
 paths:
   /items:
     get:

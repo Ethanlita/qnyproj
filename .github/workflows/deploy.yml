@@ -285,7 +285,7 @@ jobs:
         env:
           NODE_ENV: production
           # API 配置
-          VITE_API_BASE_URL: https://ei7gdiuk16.execute-api.us-east-1.amazonaws.com/dev
+          VITE_API_BASE_URL: ${{ secrets.VITE_API_BASE_URL }}
           # Cognito 配置 - 从 GitHub Secrets 注入
           VITE_COGNITO_USER_POOL_ID: ${{ secrets.COGNITO_USER_POOL_ID }}
           VITE_COGNITO_CLIENT_ID: ${{ secrets.COGNITO_CLIENT_ID }}

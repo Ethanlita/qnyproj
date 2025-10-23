@@ -165,7 +165,7 @@
 **产出** ✅:
 - ✅ 更新的 `backend/template.yaml` (2009 行)
 - ✅ **CloudFormation Stack**: qnyproj-api (us-east-1)
-- ✅ **生产 API Gateway**: https://ei7gdiuk16.execute-api.us-east-1.amazonaws.com/dev
+- ✅ **生产 API Gateway**: https://ds0yqv9fn816.execute-api.us-east-1.amazonaws.com/dev
 - ✅ **11 个新 Lambda 函数 + 11 个 IAM 角色 + 23 个权限**
 - ✅ **DynamoDB 表**: qnyproj-api-data
 - ✅ **S3 Bucket**: qnyproj-api-assets-dev
@@ -236,7 +236,7 @@
 - [x] 验证 TypeScript 类型检查通过 (0 errors)
 
 **前端 API 配置** ✅ (2025-10-20):
-- [x] 创建 `frontend/.env` 文件 (开发环境: https://ei7gdiuk16...amazonaws.com/dev)
+- [x] 创建 `frontend/.env` 文件 (开发环境: https://ds0yqv9fn816...amazonaws.com/dev)
 - [x] 创建 `frontend/.env.example` 文件 (配置示例)
 - [x] 更新 `.github/workflows/deploy.yml` 添加 `VITE_API_BASE_URL` 环境变量 (生产构建)
 - [x] 验证环境变量正确读取
@@ -389,8 +389,8 @@
 **AWS 部署信息**:
 - **Stack 名称**: qnyproj-api
 - **区域**: us-east-1
-- **API Gateway URL**: https://ei7gdiuk16.execute-api.us-east-1.amazonaws.com/dev
-- **API ID**: ei7gdiuk16
+- **API Gateway URL**: https://ds0yqv9fn816.execute-api.us-east-1.amazonaws.com/dev
+- **API ID**: ds0yqv9fn816
 - **部署日期**: 2025-10-20
 - **资源统计**: 
   - 12 Lambda 函数 (nodejs22.x)
@@ -2210,7 +2210,7 @@ function buildPanelPrompt(panelData, characterRefs) {
 
 **AWS 部署信息**:
 - Stack: qnyproj-api (us-east-1)
-- API Gateway: https://ei7gdiuk16.execute-api.us-east-1.amazonaws.com/dev
+- API Gateway: https://ds0yqv9fn816.execute-api.us-east-1.amazonaws.com/dev
 - 资源: 12 Lambda, 12 IAM 角色, 18 API 路由, DynamoDB 表, S3 Bucket
 
 **验证结果**:

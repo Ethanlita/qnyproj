@@ -14,7 +14,7 @@
     "test:secrets": "cd backend && node scripts/test-secrets.js",
     "test:contract": "npx dredd",
     "test:contract:local": "npx dredd --endpoint=http://localhost:3000",
-    "test:contract:prod": "npx dredd --endpoint=https://ei7gdiuk16.execute-api.us-east-1.amazonaws.com/dev"
+    "test:contract:prod": "npx dredd --endpoint=https://ds0yqv9fn816.execute-api.us-east-1.amazonaws.com/dev"
   },
   "dependencies": {
     "dredd": "^14.1.0",

@@ -342,7 +342,7 @@ Push to main → GitHub Actions
 ### 当前部署状态
 
 **后端 (AWS)**:
-- 📍 **API URL**: `https://ei7gdiuk16.execute-api.us-east-1.amazonaws.com/dev`
+- 📍 **API URL**: `https://ds0yqv9fn816.execute-api.us-east-1.amazonaws.com/dev`
 - 🌐 **端点类型**: Edge-Optimized (CloudFront CDN 全球加速)
 - 📦 **Lambda**: `qnyproj-api-HelloWorldFunction-7vF4AmhBaeOA`
 - 🏷️ **Stack**: `qnyproj-api` (us-east-1)
@@ -350,10 +350,10 @@ Push to main → GitHub Actions
 **可用 API 端点**:
 ```bash
 # Edge Probe - 返回请求头信息（包含 CloudFront headers）
-GET https://ei7gdiuk16.execute-api.us-east-1.amazonaws.com/dev/edge-probe
+GET https://ds0yqv9fn816.execute-api.us-east-1.amazonaws.com/dev/edge-probe
 
 # Items - 示例数据列表
-GET https://ei7gdiuk16.execute-api.us-east-1.amazonaws.com/dev/items
+GET https://ds0yqv9fn816.execute-api.us-east-1.amazonaws.com/dev/items
 ```
 
 **前端 (GitHub Pages)**:
@@ -400,7 +400,7 @@ GET https://ei7gdiuk16.execute-api.us-east-1.amazonaws.com/dev/items
 **检查 Backend**:
 ```bash
 # 测试 Edge Probe 端点
-curl https://ei7gdiuk16.execute-api.us-east-1.amazonaws.com/dev/edge-probe
+curl https://ds0yqv9fn816.execute-api.us-east-1.amazonaws.com/dev/edge-probe
 
 # 应该返回包含 CloudFront headers 的 JSON
 ```
