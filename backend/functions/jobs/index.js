@@ -7,11 +7,20 @@ const dynamoClient = new DynamoDBClient({});
 const docClient = DynamoDBDocumentClient.from(dynamoClient);
 
 const TABLE_NAME = process.env.TABLE_NAME;
+const MAX_LIMIT = 50;
 
 exports.handler = async (event) => {
   try {
     if (!TABLE_NAME) {
       throw new Error('TABLE_NAME environment variable not set');
+    }
+
+    const method = event.httpMethod || event.requestContext?.http?.method;
+    const path = event.rawPath || event.path || '';
+
+    if (method === 'GET' && isListPath(path) && !event.pathParameters?.id) {
+      const userId = getUserId(event) || 'anonymous';
+      return await handleListJobs(event, userId);
     }
 
     const jobId = event.pathParameters?.id;
@@ -43,8 +52,8 @@ exports.handler = async (event) => {
       configId: job.configId,
       progress: normalizeProgress(job.progress, tasksSummary),
       result: job.result || null,
-      createdAt: job.createdAt,
-      updatedAt: job.updatedAt,
+      createdAt: toIsoString(job.createdAt),
+      updatedAt: toIsoString(job.updatedAt),
       tasks: tasksSummary
     });
   } catch (error) {
@@ -52,6 +61,63 @@ exports.handler = async (event) => {
     return errorResponse(500, error.message || 'Internal Server Error');
   }
 };
+
+async function handleListJobs(event, userId) {
+  const qs = event.queryStringParameters || {};
+  const limitRaw = parseInt(qs.limit ?? '20', 10);
+  const limit = clampLimit(limitRaw);
+  const lastKey = decodeCursor(qs.lastKey);
+  const typeFilter = qs.type;
+  const statusFilter = qs.status;
+
+  console.log(`[Jobs] Listing jobs for user ${userId} limit=${limit} cursor=${qs.lastKey || 'null'}`);
+
+  const query = {
+    TableName: TABLE_NAME,
+    IndexName: 'GSI1',
+    KeyConditionExpression: 'GSI1PK = :pk AND begins_with(GSI1SK, :sk)',
+    ExpressionAttributeValues: {
+      ':pk': `USER#${userId}`,
+      ':sk': 'JOB#'
+    },
+    Limit: limit,
+    ScanIndexForward: false
+  };
+
+  if (lastKey) {
+    query.ExclusiveStartKey = lastKey;
+  }
+
+  const result = await docClient.send(new QueryCommand(query));
+  let items = result.Items || [];
+
+  if (typeFilter) {
+    items = items.filter((item) => item.type === typeFilter);
+  }
+  if (statusFilter) {
+    items = items.filter((item) => item.status === statusFilter);
+  }
+
+  const jobs = items.map((item) => ({
+    id: item.id,
+    type: item.type,
+    status: item.status,
+    mode: item.mode,
+    novelId: item.novelId,
+    storyboardId: item.storyboardId,
+    charId: item.charId,
+    configId: item.configId,
+    progress: normalizeProgress(item.progress || {}, {}),
+    result: item.result || null,
+    createdAt: toIsoString(item.createdAt),
+    updatedAt: toIsoString(item.updatedAt)
+  }));
+
+  return successResponse({
+    items: jobs,
+    lastKey: result.LastEvaluatedKey ? encodeCursor(result.LastEvaluatedKey) : undefined
+  });
+}
 
 async function loadJob(jobId) {
   const result = await docClient.send(
@@ -132,3 +198,39 @@ function normalizeProgress(progress = {}, tasks = {}) {
   };
 }
 
+function toIsoString(value) {
+  if (!value) return undefined;
+  if (typeof value === 'string') {
+    return value;
+  }
+  if (typeof value === 'number') {
+    return new Date(value).toISOString();
+  }
+  return undefined;
+}
+
+function encodeCursor(key) {
+  return Buffer.from(JSON.stringify(key), 'utf8').toString('base64');
+}
+
+function decodeCursor(cursor) {
+  if (!cursor) return undefined;
+  try {
+    const json = Buffer.from(cursor, 'base64').toString('utf8');
+    return JSON.parse(json);
+  } catch (error) {
+    console.warn('[Jobs] Failed to decode cursor:', error);
+    return undefined;
+  }
+}
+
+function clampLimit(value) {
+  if (Number.isNaN(value) || value <= 0) {
+    return 20;
+  }
+  return Math.min(value, MAX_LIMIT);
+}
+
+function isListPath(path) {
+  return path === '/jobs' || path === '/dev/jobs';
+}

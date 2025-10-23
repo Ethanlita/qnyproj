@@ -1,4 +1,4 @@
-import { PropsWithChildren, ReactNode } from 'react';
+import { PropsWithChildren, ReactNode, useEffect, useMemo, useState } from 'react';
 import { Link, NavLink, Outlet, useLocation } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
 import { UserInfo } from '../components/UserInfo';
@@ -25,10 +25,26 @@ function SidebarNav({ children }: PropsWithChildren) {
 export function DashboardLayout() {
   const location = useLocation();
   const { isAuthenticated, login } = useAuth();
+  const [mobileOpen, setMobileOpen] = useState(false);
+
+  const navigation = useMemo(() => navItems, []);
+
+  useEffect(() => {
+    setMobileOpen(false);
+  }, [location.pathname]);
+
+  const sidebarClassName = [styles.sidebar, mobileOpen ? styles.sidebarMobileOpen : ''].join(' ').trim();
+
+  const handleNavClick = () => {
+    setMobileOpen(false);
+  };
 
   return (
     <div className={styles.appShell}>
-      <aside className={styles.sidebar}>
+      <aside className={sidebarClassName}>
+        <button type="button" className={styles.closeSidebar} onClick={() => setMobileOpen(false)} aria-label="关闭导航">
+          ×
+        </button>
         <div className={styles.brand}>
           <Link to={isAuthenticated ? '/' : '/login'}>
             <span className={styles.brandEmoji}>🖌️</span>
@@ -39,7 +55,7 @@ export function DashboardLayout() {
           </Link>
         </div>
         <SidebarNav>
-          {navItems.map((item) => (
+          {navigation.map((item) => (
             <NavLink
               key={item.to}
               to={item.to}
@@ -53,6 +69,7 @@ export function DashboardLayout() {
                     : ''
                 ].join(' ')
               }
+              onClick={handleNavClick}
             >
               <span className={styles.navIcon}>{item.icon}</span>
               <span>{item.label}</span>
@@ -72,8 +89,23 @@ export function DashboardLayout() {
         </div>
       </aside>
 
+      {mobileOpen && (
+        <div
+          className={`${styles.mobileBackdrop} ${styles.mobileBackdropVisible}`}
+          onClick={() => setMobileOpen(false)}
+        />
+      )}
+
       <div className={styles.mainColumn}>
         <header className={styles.topbar}>
+          <button
+            type="button"
+            className={styles.mobileToggle}
+            onClick={() => setMobileOpen(true)}
+            aria-label="打开导航"
+          >
+            ☰
+          </button>
           <div className={styles.topbarBreadcrumb}>
             {breadcrumbFromPath(location.pathname)}
           </div>

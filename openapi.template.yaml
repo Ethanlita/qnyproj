@@ -58,6 +58,7 @@ paths:
         payloadFormatVersion: "2.0"
   /novels:
     get:
+      operationId: listNovels
       summary: 获取用户的作品列表
       tags:
         - Novels
@@ -99,6 +100,7 @@ paths:
           Fn::Sub: arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${NovelsFunction.Arn}/invocations
         payloadFormatVersion: "2.0"
     post:
+      operationId: createNovel
       summary: 创建新作品
       tags:
         - Novels
@@ -916,21 +918,86 @@ paths:
         uri:
           Fn::Sub: arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${ChangeRequestFunction.Arn}/invocations
         payloadFormatVersion: "2.0"
-  /jobs/{id}:
-    parameters:
-      - name: id
-        in: path
-        required: true
-        schema:
-          type: string
-          format: uuid
-        example: test-123
+  /jobs:
     get:
+      operationId: listJobs
+      summary: 获取用户的任务列表
+      description: 返回当前用户的任务集合，支持分页、类型与状态筛选。
+      tags:
+        - Jobs
+      security:
+        - CognitoAuthorizer: []
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+            minimum: 1
+            maximum: 50
+          description: 每页返回的任务数量
+        - name: lastKey
+          in: query
+          schema:
+            type: string
+          description: 分页游标（上一页返回的 lastKey）
+        - name: type
+          in: query
+          schema:
+            type: string
+            enum:
+              - analyze
+              - generate_preview
+              - generate_hd
+              - change_request
+              - panel_edit
+              - export_pdf
+              - export_webtoon
+              - export_resources
+              - generate_portrait
+          description: 任务类型过滤
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum:
+              - pending
+              - in_progress
+              - completed
+              - failed
+          description: 任务状态过滤
+      responses:
+        "200":
+          description: 任务列表
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Job"
+                  lastKey:
+                    type: string
+                    description: 下一页查询所需的游标
+    
+  /jobs/{id}:
+    get:
+      operationId: getJob
       summary: 查询任务进度
       tags:
         - Jobs
       security:
         - CognitoAuthorizer: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          example: test-123
       responses:
         "200":
           description: 任务详情
@@ -1431,8 +1498,11 @@ components:
             - analyze
             - generate_preview
             - generate_hd
-            - edit
-            - export
+            - change_request
+            - panel_edit
+            - export_pdf
+            - export_webtoon
+            - export_resources
             - generate_portrait
         mode:
           type: string
