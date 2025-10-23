@@ -996,6 +996,12 @@ paths:
                   lastKey:
                     type: string
                     description: 下一页查询所需的游标
+      x-amazon-apigateway-integration:
+        type: aws_proxy
+        httpMethod: POST
+        uri:
+          Fn::Sub: arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${JobsFunction.Arn}/invocations
+        payloadFormatVersion: "2.0"
     
   /jobs/{id}:
     get:
