@@ -1,4 +1,5 @@
-import { FormEvent, useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
+import type { FormEvent } from 'react';
 import { ExportsService, type Export } from '../api/generated';
 import styles from './ExportsPage.module.css';
 

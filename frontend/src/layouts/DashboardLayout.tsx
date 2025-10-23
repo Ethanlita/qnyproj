@@ -1,4 +1,5 @@
-import { PropsWithChildren, ReactNode, useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import type { PropsWithChildren, ReactNode } from 'react';
 import { Link, NavLink, Outlet, useLocation } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
 import { UserInfo } from '../components/UserInfo';

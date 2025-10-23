@@ -34,7 +34,7 @@ export function useJobMonitor(options: UseJobMonitorOptions = {}) {
   const pollJob = useCallback(
     async (jobId: string) => {
       try {
-        const job = await JobsService.getJobs({ id: jobId });
+        const job = await JobsService.getJob({ id: jobId });
         if (job.status === 'completed') {
           clearTimer();
           activeJobId.current = null;

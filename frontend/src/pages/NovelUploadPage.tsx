@@ -25,7 +25,7 @@ export function NovelUploadPage() {
 
     try {
       // 创建作品
-      const createdNovel = await NovelsService.postNovels({
+      const createdNovel = await NovelsService.createNovel({
         requestBody: {
           title,
           text: text || undefined,

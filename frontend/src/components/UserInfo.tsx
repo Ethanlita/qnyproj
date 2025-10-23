@@ -4,7 +4,7 @@
  * 显示在导航栏，展示当前登录用户信息和登出按钮
  */
 
-import { CSSProperties } from 'react';
+import type { CSSProperties } from 'react';
 import { useAuth } from '../auth/AuthContext';
 
 type UserInfoProps = {

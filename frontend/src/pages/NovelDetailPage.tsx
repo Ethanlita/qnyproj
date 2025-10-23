@@ -1,4 +1,5 @@
-import { ChangeEvent, FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import type { ChangeEvent, FormEvent } from 'react';
 import {
   NovelsService,
   StoryboardsService,
@@ -15,11 +16,10 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { useJobMonitor } from '../hooks/useJobMonitor';
 import styles from './NovelDetailPage.module.css';
 
-type PanelCharacters = NonNullable<NonNullable<PanelModel['content']>['characters']>;
-
 type PanelForDisplay = PanelModel & {
   previewUrl?: string;
   hdUrl?: string;
+  status?: string;
 };
 
 const RECENT_NOVELS_KEY = 'qnyproj:recentNovels';
@@ -548,7 +548,10 @@ function transformPanels(panels: PanelModel[]): PanelForDisplay[] {
   return panels.map((panel) => ({
     ...panel,
     previewUrl: panel.images?.preview,
-    hdUrl: panel.images?.hd
+    hdUrl: panel.images?.hd,
+    status: typeof (panel as Record<string, unknown>).status === 'string'
+      ? ((panel as Record<string, unknown>).status as string)
+      : undefined
   }));
 }
 
