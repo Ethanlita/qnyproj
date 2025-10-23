@@ -86,7 +86,7 @@ class ImagenAdapter {
       return this.generatePlaceholder(options);
     }
 
-    const { prompt, sourceImage, negativePrompt, aspectRatio = '1:1' } = options;
+    const { prompt, sourceImage, negativePrompt, aspectRatio = '1:1', mode, size } = options;
 
     if (!prompt || !sourceImage) {
       throw new Error('[ImagenAdapter] edit() requires both prompt and sourceImage');
@@ -124,12 +124,26 @@ class ImagenAdapter {
     // Call Gemini API (same as generate, but with image input)
     const url = `https://generativelanguage.googleapis.com/v1beta/models/${this.model}:generateContent?key=${this.apiKey}`;
 
+    const outputSize =
+      size ||
+      (mode === 'hd'
+        ? { width: 1920, height: 1080 }
+        : mode === 'preview'
+          ? { width: 512, height: 288 }
+          : null);
+
     const body = {
       contents,
       generationConfig: {
         responseModalities: ['Image'],
         outputOptions: {
           aspectRatio: aspectRatio,
+          ...(outputSize && {
+            size: {
+              widthPixels: outputSize.width,
+              heightPixels: outputSize.height
+            }
+          })
         },
         ...(negativePrompt && {
           negativePrompt: {
@@ -231,7 +245,14 @@ class ImagenAdapter {
       throw new Error('Gemini API key not configured');
     }
 
-    const { prompt, negativePrompt, aspectRatio = '16:9', referenceImages = [] } = options;
+    const {
+      prompt,
+      negativePrompt,
+      aspectRatio = '16:9',
+      referenceImages = [],
+      mode,
+      size
+    } = options;
     if (!prompt) {
       throw new Error('ImagenAdapter.generate requires a prompt');
     }
@@ -287,6 +308,14 @@ class ImagenAdapter {
       }
     }
 
+    const outputSize =
+      size ||
+      (mode === 'hd'
+        ? { width: 1920, height: 1080 }
+        : mode === 'preview'
+          ? { width: 512, height: 288 }
+          : null);
+
     const body = {
       contents,
       generationConfig: {
@@ -295,6 +324,16 @@ class ImagenAdapter {
         outputMimeType: 'image/png'
       }
     };
+
+    if (outputSize) {
+      body.generationConfig.outputOptions = {
+        ...(body.generationConfig.outputOptions || {}),
+        size: {
+          widthPixels: outputSize.width,
+          heightPixels: outputSize.height
+        }
+      };
+    }
 
     const res = await this.fetch(url, {
       method: 'POST',
@@ -337,4 +376,3 @@ function truncate(value, maxLength) {
 }
 
 module.exports = ImagenAdapter;
-

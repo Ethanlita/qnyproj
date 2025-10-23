@@ -1,0 +1,210 @@
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+}
+
+.header h1 {
+  margin: 0 0 8px;
+  font-size: 26px;
+  color: #0f172a;
+}
+
+.header p {
+  margin: 0;
+  color: #475569;
+  max-width: 620px;
+  line-height: 1.6;
+}
+
+.card {
+  background: rgba(255, 255, 255, 0.92);
+  border-radius: 20px;
+  padding: 26px;
+  box-shadow: 0 24px 48px rgba(15, 23, 42, 0.08);
+  border: 1px solid rgba(226, 232, 240, 0.6);
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+}
+
+.search {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.search label {
+  font-size: 13px;
+  color: #64748b;
+}
+
+.searchRow {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 120px;
+  gap: 14px;
+}
+
+.searchRow input {
+  border-radius: 12px;
+  border: 1px solid rgba(148, 163, 184, 0.4);
+  padding: 12px 16px;
+  font-size: 15px;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.searchRow input:focus {
+  border-color: #0ea5e9;
+  box-shadow: 0 0 0 4px rgba(14, 165, 233, 0.12);
+  outline: none;
+}
+
+.searchRow button {
+  border-radius: 12px;
+  border: none;
+  background: linear-gradient(135deg, #0ea5e9, #6366f1);
+  color: #fff;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.searchRow button:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 16px 26px rgba(99, 102, 241, 0.28);
+}
+
+.searchRow button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.errorBox {
+  padding: 14px 16px;
+  border-radius: 12px;
+  background: rgba(248, 113, 113, 0.16);
+  color: #b91c1c;
+  border: 1px solid rgba(248, 113, 113, 0.4);
+}
+
+.result header {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+}
+
+.result header h2 {
+  margin: 0;
+  font-size: 16px;
+  color: #1e293b;
+}
+
+.result header span {
+  font-size: 13px;
+  color: #94a3b8;
+}
+
+.result dl {
+  margin: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 14px;
+}
+
+.result dl div {
+  background: rgba(241, 245, 249, 0.8);
+  border-radius: 12px;
+  padding: 14px;
+}
+
+.result dt {
+  font-size: 12px;
+  color: #64748b;
+  margin-bottom: 4px;
+}
+
+.result dd {
+  margin: 0;
+  font-size: 14px;
+  color: #1e293b;
+  word-break: break-all;
+}
+
+.result a {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 10px 18px;
+  border-radius: 12px;
+  background: linear-gradient(135deg, #22c55e, #16a34a);
+  color: #fff;
+  font-weight: 600;
+  text-decoration: none;
+  box-shadow: 0 16px 24px rgba(16, 185, 129, 0.28);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.result a:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 20px 30px rgba(16, 185, 129, 0.32);
+}
+
+.tip {
+  margin: 0;
+  font-size: 13px;
+  color: #94a3b8;
+}
+
+.list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.list li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 16px;
+  border-radius: 12px;
+  border: 1px solid rgba(148, 163, 184, 0.3);
+  background: rgba(248, 250, 252, 0.9);
+  font-size: 14px;
+  color: #334155;
+}
+
+.list li button {
+  padding: 8px 14px;
+  border-radius: 10px;
+  border: none;
+  background: linear-gradient(135deg, #6366f1, #a855f7);
+  color: #fff;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.list li button:hover {
+  transform: translateY(-1px);
+}
+
+.empty {
+  padding: 16px;
+  border-radius: 12px;
+  border: 1px dashed rgba(148, 163, 184, 0.5);
+  color: #94a3b8;
+  text-align: center;
+}
+
+@media (max-width: 640px) {
+  .card {
+    padding: 22px;
+  }
+
+  .searchRow {
+    grid-template-columns: 1fr;
+  }
+}

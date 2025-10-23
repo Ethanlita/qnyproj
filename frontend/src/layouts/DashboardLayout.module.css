@@ -1,0 +1,213 @@
+.appShell {
+  display: grid;
+  grid-template-columns: 260px 1fr;
+  min-height: 100vh;
+  color: #0f172a;
+}
+
+.sidebar {
+  background: radial-gradient(circle at top, #1f2937 0%, #111827 70%);
+  color: #f8fafc;
+  padding: 32px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 32px;
+  box-shadow: 8px 0 24px rgba(15, 23, 42, 0.12);
+  position: relative;
+  z-index: 1;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.brandText {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.2;
+}
+
+.brandText strong {
+  font-size: 18px;
+  letter-spacing: 0.4px;
+}
+
+.brandText span {
+  font-size: 12px;
+  color: rgba(226, 232, 240, 0.75);
+}
+
+.brandEmoji {
+  font-size: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.sidebarNav {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.navItem {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  color: rgba(226, 232, 240, 0.78);
+  font-size: 15px;
+  transition: background 0.2s ease, color 0.2s ease, transform 0.2s ease;
+}
+
+.navItem:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
+  transform: translateX(4px);
+}
+
+.navItemActive {
+  background: linear-gradient(135deg, #60a5fa, #7c3aed);
+  color: #fff;
+  font-weight: 600;
+  box-shadow: 0 8px 16px rgba(124, 58, 237, 0.25);
+}
+
+.navIcon {
+  font-size: 18px;
+  width: 24px;
+  text-align: center;
+}
+
+.sidebarFooter {
+  margin-top: auto;
+  font-size: 12px;
+  color: rgba(226, 232, 240, 0.6);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.sidebarLink {
+  color: rgba(226, 232, 240, 0.85);
+}
+
+.sidebarLink:hover {
+  color: #fff;
+  text-decoration: underline;
+}
+
+.sidebarHint {
+  margin: 0;
+  line-height: 1.4;
+}
+
+.mainColumn {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
+
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 24px 36px;
+}
+
+.topbarBreadcrumb {
+  font-size: 14px;
+  color: #475569;
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  font-weight: 500;
+}
+
+.breadcrumbSegment a {
+  color: inherit;
+  text-transform: capitalize;
+}
+
+.breadcrumbSegment a:hover {
+  color: #1d4ed8;
+}
+
+.breadcrumbDivider {
+  color: #cbd5f5;
+  padding: 0 4px;
+}
+
+.topbarActions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.loginButton {
+  padding: 8px 16px;
+  border-radius: 999px;
+  border: none;
+  background: linear-gradient(135deg, #60a5fa, #2563eb);
+  color: #fff;
+  font-size: 14px;
+  cursor: pointer;
+  box-shadow: 0 4px 12px rgba(37, 99, 235, 0.25);
+  transition: transform 0.18s ease, box-shadow 0.18s ease;
+}
+
+.loginButton:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 18px rgba(37, 99, 235, 0.35);
+}
+
+.mainContent {
+  flex: 1;
+  padding: 0 36px 48px;
+}
+
+@media (max-width: 1024px) {
+  .appShell {
+    grid-template-columns: 220px 1fr;
+  }
+
+  .topbar {
+    padding: 20px 24px;
+  }
+
+  .mainContent {
+    padding: 0 24px 36px;
+  }
+}
+
+@media (max-width: 840px) {
+  .appShell {
+    grid-template-columns: 1fr;
+  }
+
+  .sidebar {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    padding: 20px 24px;
+  }
+
+  .sidebarNav {
+    flex-direction: row;
+  }
+
+  .navItem {
+    padding: 10px 16px;
+  }
+
+  .sidebarFooter {
+    display: none;
+  }
+}

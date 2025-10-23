@@ -4,9 +4,14 @@
  * 显示在导航栏，展示当前登录用户信息和登出按钮
  */
 
+import { CSSProperties } from 'react';
 import { useAuth } from '../auth/AuthContext';
 
-export function UserInfo() {
+type UserInfoProps = {
+  compact?: boolean;
+};
+
+export function UserInfo({ compact = false }: UserInfoProps) {
   const { user, isAuthenticated, logout } = useAuth();
 
   if (!isAuthenticated || !user) {
@@ -32,15 +37,28 @@ export function UserInfo() {
 
   const email = user.profile.email;
 
+  const containerStyle: CSSProperties = compact
+    ? {
+        display: 'flex',
+        alignItems: 'center',
+        gap: '10px',
+        padding: '6px 10px',
+        background: 'rgba(255,255,255,0.65)',
+        borderRadius: '999px',
+        boxShadow: '0 4px 12px rgba(148,163,184,0.15)',
+        border: '1px solid rgba(148, 163, 184, 0.25)'
+      }
+    : {
+        display: 'flex',
+        alignItems: 'center',
+        gap: '12px',
+        padding: '8px 16px',
+        backgroundColor: '#f5f5f5',
+        borderRadius: '20px'
+      };
+
   return (
-    <div style={{
-      display: 'flex',
-      alignItems: 'center',
-      gap: '12px',
-      padding: '8px 16px',
-      backgroundColor: '#f5f5f5',
-      borderRadius: '20px'
-    }}>
+    <div style={containerStyle}>
       {/* 头像 */}
       <div style={{
         width: '32px',
@@ -70,7 +88,7 @@ export function UserInfo() {
         }}>
           {displayName}
         </span>
-        {email && (
+        {email && !compact && (
           <span style={{
             fontSize: '12px',
             color: '#666'
@@ -84,28 +102,25 @@ export function UserInfo() {
       <button
         onClick={handleLogout}
         style={{
-          marginLeft: '8px',
-          padding: '6px 12px',
-          backgroundColor: 'white',
-          color: '#666',
-          border: '1px solid #ddd',
-          borderRadius: '4px',
-          fontSize: '12px',
+          marginLeft: compact ? 0 : '8px',
+          padding: compact ? '4px 10px' : '6px 12px',
+          background: compact ? 'linear-gradient(135deg, #f472b6, #ec4899)' : 'white',
+          color: compact ? '#fff' : '#666',
+          border: compact ? 'none' : '1px solid #ddd',
+          borderRadius: '999px',
+          fontSize: compact ? '12px' : '12px',
           cursor: 'pointer',
+          boxShadow: compact ? '0 6px 16px rgba(236, 72, 153, 0.3)' : 'none',
           transition: 'all 0.2s'
         }}
         onMouseOver={(e) => {
-          e.currentTarget.style.backgroundColor = '#ff4d4f';
-          e.currentTarget.style.color = 'white';
-          e.currentTarget.style.borderColor = '#ff4d4f';
+          e.currentTarget.style.transform = 'translateY(-2px)';
         }}
         onMouseOut={(e) => {
-          e.currentTarget.style.backgroundColor = 'white';
-          e.currentTarget.style.color = '#666';
-          e.currentTarget.style.borderColor = '#ddd';
+          e.currentTarget.style.transform = 'translateY(0)';
         }}
       >
-        登出
+        退出
       </button>
     </div>
   );

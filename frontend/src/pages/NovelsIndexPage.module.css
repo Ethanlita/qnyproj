@@ -1,0 +1,172 @@
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+}
+
+.hero h1 {
+  margin: 0 0 8px;
+  font-size: 26px;
+  color: #0f172a;
+}
+
+.hero p {
+  margin: 0;
+  color: #475569;
+  max-width: 640px;
+  line-height: 1.6;
+}
+
+.card {
+  background: rgba(255, 255, 255, 0.92);
+  border-radius: 20px;
+  padding: 28px;
+  box-shadow: 0 24px 48px rgba(15, 23, 42, 0.08);
+  border: 1px solid rgba(226, 232, 240, 0.6);
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.card header h2 {
+  margin: 0;
+  font-size: 18px;
+  color: #1e293b;
+}
+
+.card header span {
+  font-size: 13px;
+  color: #94a3b8;
+}
+
+.searchBar {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 140px;
+  gap: 16px;
+  align-items: end;
+}
+
+.inputGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.inputGroup label {
+  font-size: 13px;
+  color: #64748b;
+}
+
+.inputGroup input {
+  border-radius: 12px;
+  border: 1px solid rgba(148, 163, 184, 0.4);
+  padding: 12px 16px;
+  font-size: 15px;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.inputGroup input:focus {
+  border-color: #6366f1;
+  box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.1);
+  outline: none;
+}
+
+.searchBar button {
+  padding: 12px 18px;
+  border-radius: 12px;
+  border: none;
+  background: linear-gradient(135deg, #6366f1, #14b8a6);
+  color: #fff;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: 0 16px 24px rgba(99, 102, 241, 0.25);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.searchBar button:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 20px 32px rgba(99, 102, 241, 0.3);
+}
+
+.actions {
+  display: flex;
+  gap: 12px;
+}
+
+.actions button {
+  flex: 1;
+  padding: 12px 16px;
+  border-radius: 12px;
+  border: 1px solid rgba(148, 163, 184, 0.4);
+  background: rgba(248, 250, 252, 0.9);
+  cursor: pointer;
+  font-size: 14px;
+  color: #1e293b;
+  transition: border-color 0.2s ease, background 0.2s ease;
+}
+
+.actions button:hover {
+  border-color: #6366f1;
+  background: rgba(236, 233, 252, 0.9);
+}
+
+.recentSection h3 {
+  margin: 0 0 12px;
+  font-size: 16px;
+  color: #0f172a;
+}
+
+.empty {
+  margin: 0;
+  padding: 16px;
+  border-radius: 12px;
+  background: rgba(241, 245, 249, 0.8);
+  color: #94a3b8;
+}
+
+.recentList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.recentList li {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 14px 18px;
+  border-radius: 12px;
+  border: 1px solid rgba(148, 163, 184, 0.3);
+  background: rgba(248, 250, 252, 0.9);
+  font-size: 14px;
+  color: #334155;
+}
+
+.recentList li button {
+  padding: 8px 14px;
+  border-radius: 10px;
+  border: none;
+  background: linear-gradient(135deg, #38bdf8, #6366f1);
+  color: #fff;
+  font-size: 13px;
+  cursor: pointer;
+  box-shadow: 0 12px 18px rgba(14, 116, 144, 0.25);
+}
+
+.recentList li button:hover {
+  transform: translateY(-1px);
+}
+
+@media (max-width: 640px) {
+  .card {
+    padding: 22px;
+  }
+
+  .searchBar {
+    grid-template-columns: 1fr;
+  }
+}

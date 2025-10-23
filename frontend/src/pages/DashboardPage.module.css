@@ -1,0 +1,277 @@
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: 32px;
+}
+
+.hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 420px;
+  gap: 32px;
+  align-items: stretch;
+}
+
+.hero h1 {
+  margin: 0 0 8px;
+  font-size: 28px;
+  color: #0f172a;
+}
+
+.hero p {
+  margin: 0;
+  color: #475569;
+  line-height: 1.6;
+}
+
+.heroHighlights {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.highlightCard {
+  background: linear-gradient(135deg, rgba(14, 116, 144, 0.12), rgba(37, 99, 235, 0.1));
+  border-radius: 16px;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  color: #1e293b;
+  border: 1px solid rgba(148, 163, 184, 0.16);
+  backdrop-filter: blur(6px);
+}
+
+.highlightCard strong {
+  font-size: 16px;
+}
+
+.highlightCard p {
+  margin: 0;
+  font-size: 14px;
+  color: #475569;
+}
+
+.highlightPill {
+  align-self: flex-start;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: rgba(59, 130, 246, 0.16);
+  color: #1d4ed8;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 24px;
+}
+
+.card {
+  background: rgba(255, 255, 255, 0.92);
+  border-radius: 20px;
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  box-shadow: 0 24px 48px rgba(15, 23, 42, 0.08);
+  border: 1px solid rgba(226, 232, 240, 0.6);
+}
+
+.card header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+}
+
+.card header h2 {
+  margin: 0;
+  font-size: 18px;
+  color: #0f172a;
+}
+
+.card header span {
+  font-size: 13px;
+  color: #94a3b8;
+}
+
+.errorBox {
+  padding: 12px;
+  background: rgba(248, 113, 113, 0.18);
+  color: #b91c1c;
+  border-radius: 12px;
+  border: 1px solid rgba(239, 68, 68, 0.25);
+}
+
+.emptyState {
+  padding: 20px;
+  border-radius: 14px;
+  border: 1px dashed rgba(148, 163, 184, 0.5);
+  text-align: center;
+  color: #64748b;
+  font-size: 14px;
+}
+
+.jobList {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.jobList li {
+  padding: 16px;
+  border-radius: 14px;
+  background: rgba(241, 245, 249, 0.75);
+  border: 1px solid rgba(148, 163, 184, 0.18);
+}
+
+.jobTitle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 15px;
+  color: #1e293b;
+  font-weight: 600;
+}
+
+.jobType {
+  background: rgba(59, 130, 246, 0.12);
+  color: #1d4ed8;
+  padding: 4px 8px;
+  border-radius: 999px;
+  font-size: 12px;
+}
+
+.jobId {
+  font-size: 12px;
+  color: #94a3b8;
+}
+
+.jobMeta {
+  margin-top: 6px;
+  display: flex;
+  gap: 12px;
+  color: #64748b;
+  font-size: 13px;
+}
+
+.timeline {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  position: relative;
+}
+
+.timeline::before {
+  content: '';
+  position: absolute;
+  left: 9px;
+  top: 6px;
+  bottom: 6px;
+  width: 2px;
+  background: linear-gradient(180deg, rgba(96, 165, 250, 0.6), rgba(129, 140, 248, 0.32));
+}
+
+.timeline li {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+  position: relative;
+}
+
+.timelineDot {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #60a5fa, #6366f1);
+  box-shadow: 0 6px 12px rgba(79, 70, 229, 0.3);
+  border: 2px solid #fff;
+  position: relative;
+  z-index: 1;
+}
+
+.timelineMeta {
+  margin-top: 4px;
+  display: flex;
+  gap: 12px;
+  font-size: 12px;
+  color: #94a3b8;
+}
+
+.cardFooter {
+  padding: 12px;
+  background: rgba(59, 130, 246, 0.08);
+  border-radius: 12px;
+  font-size: 13px;
+  color: #1d4ed8;
+}
+
+.cardFooter span {
+  font-weight: 600;
+}
+
+.actionList {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.actionList li {
+  display: flex;
+  gap: 16px;
+  align-items: flex-start;
+}
+
+.actionList li span {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 12px;
+  background: rgba(99, 102, 241, 0.12);
+  color: #4338ca;
+  font-weight: 700;
+}
+
+.actionList li strong {
+  font-size: 15px;
+  color: #1e293b;
+}
+
+.actionList li p {
+  margin: 4px 0 0;
+  font-size: 13px;
+  color: #64748b;
+}
+
+@media (max-width: 1080px) {
+  .hero {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 640px) {
+  .card {
+    padding: 20px;
+  }
+
+  .heroHighlights {
+    flex-direction: row;
+    gap: 12px;
+    overflow-x: auto;
+  }
+
+  .highlightCard {
+    min-width: 220px;
+  }
+}

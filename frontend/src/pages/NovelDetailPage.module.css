@@ -1,0 +1,477 @@
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: 32px;
+}
+
+.errorBox {
+  padding: 16px;
+  border-radius: 14px;
+  background: rgba(248, 113, 113, 0.16);
+  border: 1px solid rgba(239, 68, 68, 0.4);
+  color: #b91c1c;
+}
+
+.primaryButton {
+  padding: 12px 20px;
+  border-radius: 12px;
+  border: none;
+  background: linear-gradient(135deg, #6366f1, #a855f7);
+  color: #fff;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: 0 20px 32px rgba(99, 102, 241, 0.28);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.primaryButton:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 24px 36px rgba(99, 102, 241, 0.32);
+}
+
+.secondaryButton {
+  padding: 12px 20px;
+  border-radius: 12px;
+  border: 1px solid rgba(148, 163, 184, 0.45);
+  background: rgba(248, 250, 252, 0.92);
+  color: #1e293b;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.headerSection {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 24px;
+}
+
+.headerSection h1 {
+  margin: 0 0 8px;
+  font-size: 28px;
+  color: #0f172a;
+}
+
+.metaRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  color: #64748b;
+  font-size: 13px;
+}
+
+.statusBadge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: rgba(59, 130, 246, 0.12);
+  color: #1d4ed8;
+  font-weight: 600;
+}
+
+.headerActions {
+  display: flex;
+  gap: 12px;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 24px;
+}
+
+.card {
+  background: rgba(255, 255, 255, 0.95);
+  border-radius: 20px;
+  padding: 24px;
+  box-shadow: 0 24px 48px rgba(15, 23, 42, 0.08);
+  border: 1px solid rgba(226, 232, 240, 0.6);
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.card header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+}
+
+.card header h2 {
+  margin: 0;
+  font-size: 18px;
+  color: #1e293b;
+}
+
+.card header span {
+  font-size: 13px;
+  color: #94a3b8;
+}
+
+.controlRow {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 220px 140px;
+  gap: 16px;
+  align-items: center;
+}
+
+.controlRow select,
+.exportForm select,
+.crForm textarea,
+.crForm select,
+.editForm textarea,
+.editForm select {
+  border-radius: 12px;
+  border: 1px solid rgba(148, 163, 184, 0.4);
+  padding: 12px 14px;
+  font-size: 14px;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.controlRow select:focus,
+.exportForm select:focus,
+.crForm textarea:focus,
+.editForm textarea:focus {
+  border-color: #6366f1;
+  box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.1);
+  outline: none;
+}
+
+.jobStatusRow {
+  display: flex;
+}
+
+.jobStatus {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 13px;
+  color: #475569;
+}
+
+.jobStatus strong {
+  color: #0f172a;
+}
+
+.jobStatus code {
+  background: rgba(15, 23, 42, 0.06);
+  padding: 4px 8px;
+  border-radius: 8px;
+  font-size: 12px;
+}
+
+.badgeRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.statusChip {
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: rgba(241, 245, 249, 0.9);
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  font-size: 12px;
+  color: #334155;
+}
+
+.crForm {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.crForm textarea {
+  resize: vertical;
+}
+
+.crActions {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.crHint {
+  margin: 0;
+  font-size: 12px;
+  color: #94a3b8;
+}
+
+.dslPreview {
+  border-radius: 14px;
+  background: rgba(15, 23, 42, 0.85);
+  color: #e2e8f0;
+  padding: 12px;
+  font-size: 12px;
+  max-height: 220px;
+  overflow: auto;
+}
+
+.dslPreview header {
+  margin-bottom: 8px;
+}
+
+.dslPreview pre {
+  margin: 0;
+  white-space: pre-wrap;
+}
+
+.exportForm {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.exportResult {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 16px;
+  font-size: 13px;
+}
+
+.exportResult div {
+  background: rgba(241, 245, 249, 0.88);
+  border-radius: 12px;
+  padding: 12px 14px;
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.exportResult span {
+  color: #94a3b8;
+}
+
+.panelSection header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.panelSection header h2 {
+  margin: 0;
+  font-size: 18px;
+  color: #1e293b;
+}
+
+.panelSection header span {
+  font-size: 13px;
+  color: #94a3b8;
+}
+
+.empty {
+  padding: 18px;
+  border-radius: 12px;
+  border: 1px dashed rgba(148, 163, 184, 0.5);
+  text-align: center;
+  color: #94a3b8;
+}
+
+.panelGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 18px;
+}
+
+.panelCard {
+  border: none;
+  background: rgba(255, 255, 255, 0.92);
+  border-radius: 16px;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  cursor: pointer;
+  box-shadow: 0 14px 28px rgba(15, 23, 42, 0.08);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.panelCard:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 20px 32px rgba(15, 23, 42, 0.12);
+}
+
+.panelImageWrap {
+  background: rgba(226, 232, 240, 0.5);
+  border-radius: 12px;
+  aspect-ratio: 16 / 9;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.panelImageWrap img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.panelMeta {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  text-align: left;
+}
+
+.panelMeta strong {
+  color: #1e293b;
+  font-size: 14px;
+}
+
+.panelMeta span {
+  color: #64748b;
+  font-size: 12px;
+}
+
+.sheetOverlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.45);
+  display: flex;
+  justify-content: flex-end;
+  z-index: 40;
+}
+
+.sheet {
+  width: min(480px, 100%);
+  background: #ffffff;
+  height: 100%;
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  box-shadow: -24px 0 48px rgba(15, 23, 42, 0.35);
+}
+
+.sheet header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.sheet header h3 {
+  margin: 0;
+  color: #0f172a;
+}
+
+.closeButton {
+  border: none;
+  background: rgba(148, 163, 184, 0.2);
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  cursor: pointer;
+  font-size: 18px;
+}
+
+.sheetBody {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  overflow-y: auto;
+}
+
+.sheetPreview {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.sheetPreview img {
+  width: 100%;
+  border-radius: 12px;
+  border: 1px solid rgba(148, 163, 184, 0.3);
+}
+
+.sheetPreview dl {
+  margin: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 12px;
+}
+
+.sheetPreview dt {
+  font-size: 12px;
+  color: #94a3b8;
+}
+
+.sheetPreview dd {
+  margin: 0;
+  font-size: 13px;
+  color: #1e293b;
+}
+
+.editForm {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.modeButtons {
+  display: flex;
+  gap: 8px;
+}
+
+.modeButton,
+.modeButtonActive {
+  flex: 1;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid rgba(148, 163, 184, 0.4);
+  background: rgba(248, 250, 252, 0.92);
+  cursor: pointer;
+  font-size: 13px;
+}
+
+.modeButtonActive {
+  border-color: #6366f1;
+  background: rgba(129, 140, 248, 0.16);
+  color: #4338ca;
+}
+
+.maskPreview {
+  width: 100%;
+  border-radius: 12px;
+  border: 1px solid rgba(148, 163, 184, 0.35);
+}
+
+.sheetActions {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+@media (max-width: 960px) {
+  .controlRow {
+    grid-template-columns: 1fr;
+  }
+
+  .exportForm {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .headerSection {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .headerActions {
+    width: 100%;
+    flex-direction: column;
+  }
+}
+
+@media (max-width: 640px) {
+  .card {
+    padding: 20px;
+  }
+
+  .panelGrid {
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  }
+}
