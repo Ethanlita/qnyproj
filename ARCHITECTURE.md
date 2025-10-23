@@ -778,31 +778,42 @@ exports.handler = async (event) => {
     } catch (error) {
       console.error(`Panel ${task.panelId} failed:`, error);
       
-      // 指数退避重试
+      // ⭐ 2025年10月22日更新: 使用 EventBridge 替代 Lambda 内 sleep
+      // 旧实现（已废弃）: await new Promise(resolve => setTimeout(resolve, backoffMs));
+      
+      // 新实现: 使用 EventBridge 调度延迟重试
       const retryCount = parseInt(task.retryCount || '0');
       if (retryCount < MAX_RETRIES) {
-        const backoffMs = Math.pow(2, retryCount) * 1000;
-        console.log(`Retrying after ${backoffMs}ms (attempt ${retryCount + 1})`);
+        const backoffSeconds = Math.pow(2, retryCount) * 10; // 10s, 20s, 40s
+        const retryAt = new Date(Date.now() + backoffSeconds * 1000);
         
-        await new Promise(resolve => setTimeout(resolve, backoffMs));
+        console.log(`Scheduling retry at ${retryAt.toISOString()} (attempt ${retryCount + 1})`);
         
-        await dynamodb.send(new UpdateItemCommand({
+        // 1. 删除旧任务记录
+        await dynamodb.send(new DeleteItemCommand({
           TableName: process.env.TABLE_NAME,
           Key: {
             PK: { S: task.PK },
             SK: { S: task.SK }
-          },
-          UpdateExpression: 'SET #status = :pending, retryCount = retryCount + :inc, #error = :err',
-          ExpressionAttributeNames: {
-            '#status': 'status',
-            '#error': 'error'
-          },
-          ExpressionAttributeValues: {
-            ':pending': { S: 'pending' },
-            ':inc': { N: '1' },
-            ':err': { S: error.message }
           }
         }));
+        
+        // 2. 使用 EventBridge 调度重试（不阻塞 Lambda）
+        await eventBridge.send(new PutEventsCommand({
+          Entries: [{
+            Source: 'qnyproj.panel-worker',
+            DetailType: 'RetryPanelTask',
+            Detail: JSON.stringify({
+              ...task,
+              retryCount: retryCount + 1,
+              lastError: error.message
+            }),
+            Time: retryAt // EventBridge 在此时间交付事件
+          }]
+        }));
+        
+        // RetryHandlerFunction 会在指定时间重新插入任务到 DynamoDB
+        // 触发 Stream INSERT 事件，重新调用 PanelWorkerFunction
       } else {
         // 标记为失败
         await updateTaskStatus(task.PK, task.SK, 'failed', error.message);
@@ -855,8 +866,9 @@ function buildPanelPrompt(panelData, characterRefs) {
 **关键特性**:
 - **并发控制**: DynamoDB Streams 批处理,最多并发 10 个任务
 - **幂等性**: 基于 `jobId:panelId:mode` 的唯一键,防止重复生成
-- **失败重试**: 指数退避,最多 3 次重试
+- **失败重试**: EventBridge 调度延迟重试 (10s/20s/40s),最多 3 次重试 ⭐ 2025年10月22日更新
 - **进度跟踪**: 实时更新 Job 项的 `progress.completed`
+- **成本优化**: Lambda 内零等待,重试由 EventBridge + RetryHandler 处理 ⭐ 新增
 
 ---
 
