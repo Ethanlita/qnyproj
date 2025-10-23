@@ -30,17 +30,32 @@ const PLACEHOLDER_PNG = Buffer.from(
 );
 
 exports.handler = async (event) => {
-  if (!TABLE_NAME) {
-    console.error('[Export] TABLE_NAME not configured');
-    return errorResponse(500, 'TABLE_NAME environment variable not set');
-  }
-  if (!ASSETS_BUCKET) {
-    console.error('[Export] ASSETS_BUCKET not configured');
-    return errorResponse(500, 'ASSETS_BUCKET environment variable not set');
-  }
-
   try {
     const method = event.httpMethod || event.requestContext?.http?.method || 'GET';
+
+    // Handle OPTIONS preflight request
+    if (method === 'OPTIONS') {
+      return {
+        statusCode: 200,
+        headers: {
+          'Access-Control-Allow-Origin': '*',
+          'Access-Control-Allow-Headers': 'Content-Type,Authorization,X-Amz-Date,X-Api-Key,X-Amz-Security-Token',
+          'Access-Control-Allow-Methods': 'GET,POST,PUT,DELETE,OPTIONS',
+          'Access-Control-Max-Age': '86400'
+        },
+        body: ''
+      };
+    }
+
+    if (!TABLE_NAME) {
+      console.error('[Export] TABLE_NAME not configured');
+      return errorResponse(500, 'TABLE_NAME environment variable not set');
+    }
+    if (!ASSETS_BUCKET) {
+      console.error('[Export] ASSETS_BUCKET not configured');
+      return errorResponse(500, 'ASSETS_BUCKET environment variable not set');
+    }
+
     const userId = getUserId(event) || 'anonymous';
 
     if (method === 'POST') {

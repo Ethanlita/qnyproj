@@ -26,6 +26,20 @@ exports.handler = async (event) => {
     const path = event.rawPath || event.path || '';
     const userId = getUserId(event) || 'anonymous';
 
+    // Handle OPTIONS preflight request
+    if (method === 'OPTIONS') {
+      return {
+        statusCode: 200,
+        headers: {
+          'Access-Control-Allow-Origin': '*',
+          'Access-Control-Allow-Headers': 'Content-Type,Authorization,X-Amz-Date,X-Api-Key,X-Amz-Security-Token',
+          'Access-Control-Allow-Methods': 'GET,POST,PUT,DELETE,OPTIONS',
+          'Access-Control-Max-Age': '86400'
+        },
+        body: ''
+      };
+    }
+
     if (method === 'GET' && isRootPath(path)) {
       return await handleListNovels(event, userId);
     }

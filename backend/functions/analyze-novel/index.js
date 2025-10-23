@@ -144,6 +144,22 @@ async function sendToSQS(jobId, novelId, userId) {
  */
 exports.handler = async (event) => {
   try {
+    const method = event.httpMethod || event.requestContext?.http?.method;
+
+    // Handle OPTIONS preflight request
+    if (method === 'OPTIONS') {
+      return {
+        statusCode: 200,
+        headers: {
+          'Access-Control-Allow-Origin': '*',
+          'Access-Control-Allow-Headers': 'Content-Type,Authorization,X-Amz-Date,X-Api-Key,X-Amz-Security-Token',
+          'Access-Control-Allow-Methods': 'GET,POST,PUT,DELETE,OPTIONS',
+          'Access-Control-Max-Age': '86400'
+        },
+        body: ''
+      };
+    }
+
     const novelId = event.pathParameters?.id;
     const userId = getUserId(event) || 'mock-user';
     
