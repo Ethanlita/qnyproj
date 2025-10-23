@@ -2012,11 +2012,17 @@ Resources:
           TABLE_NAME: !Ref ComicDataTable
           ASSETS_BUCKET: !Ref AssetsBucket
           ENVIRONMENT: !Ref Environment
+          QWEN_SECRET_ARN: !Ref QwenApiKeySecret
       Policies:
         - DynamoDBCrudPolicy:
             TableName: !Ref ComicDataTable
         - S3CrudPolicy:
             BucketName: !Ref AssetsBucket
+        - Statement:
+            - Effect: Allow
+              Action:
+                - secretsmanager:GetSecretValue
+              Resource: !Ref QwenApiKeySecret
       Events:
         NovelsFunctionEvent1:
           Type: Api
@@ -2024,15 +2030,22 @@ Resources:
             RestApiId:
               Ref: MyApiGateway
             Path: /novels
-            Method: POST
+            Method: GET
         NovelsFunctionEvent2:
+          Type: Api
+          Properties:
+            RestApiId:
+              Ref: MyApiGateway
+            Path: /novels
+            Method: POST
+        NovelsFunctionEvent3:
           Type: Api
           Properties:
             RestApiId:
               Ref: MyApiGateway
             Path: /novels/{id}
             Method: GET
-        NovelsFunctionEvent3:
+        NovelsFunctionEvent4:
           Type: Api
           Properties:
             RestApiId:

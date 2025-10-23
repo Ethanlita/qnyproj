@@ -14,6 +14,64 @@ exports.handler = async (event) => {
     
     console.log(`NovelsFunction: ${method} ${path}`);
     
+    // GET /novels - 获取作品列表
+    if (method === 'GET' && (path === '/novels' || path === '/dev/novels')) {
+      const limit = parseInt(event.queryStringParameters?.limit || '20', 10);
+      const lastKey = event.queryStringParameters?.lastKey;
+      
+      console.log('Fetching novels list, limit:', limit, 'lastKey:', lastKey);
+      
+      // Mock 数据 - 返回用户的作品列表
+      const mockNovels = [
+        {
+          id: 'novel-001',
+          title: '勇士的奇幻冒险',
+          status: 'analyzed',
+          storyboardId: 'story-001',
+          userId,
+          metadata: {
+            genre: '奇幻',
+            tags: ['冒险', '魔法']
+          },
+          createdAt: '2025-10-20T08:00:00Z',
+          updatedAt: '2025-10-20T09:00:00Z'
+        },
+        {
+          id: 'novel-002',
+          title: '未来科技传说',
+          status: 'created',
+          userId,
+          metadata: {
+            genre: '科幻',
+            tags: ['未来', 'AI']
+          },
+          createdAt: '2025-10-19T10:00:00Z',
+          updatedAt: '2025-10-19T10:00:00Z'
+        },
+        {
+          id: 'novel-003',
+          title: '古代武侠江湖',
+          status: 'analyzing',
+          userId,
+          metadata: {
+            genre: '武侠',
+            tags: ['江湖', '侠义']
+          },
+          createdAt: '2025-10-18T14:00:00Z',
+          updatedAt: '2025-10-18T15:00:00Z'
+        }
+      ];
+      
+      // 简单分页（实际应该从 DynamoDB 查询）
+      const items = mockNovels.slice(0, limit);
+      const hasMore = mockNovels.length > limit;
+      
+      return successResponse({
+        items,
+        lastKey: hasMore ? 'mock-last-key' : undefined
+      });
+    }
+    
     // POST /novels - 创建作品
     if (method === 'POST' && (path === '/novels' || path === '/dev/novels')) {
       const body = JSON.parse(event.body || '{}');
