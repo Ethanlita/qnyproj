@@ -187,8 +187,10 @@ jobs:
           # Create temporary .env with COGNITO_USER_POOL_ID for parameter passing
           cat > .env << EOF
           COGNITO_USER_POOL_ID=${{ secrets.COGNITO_USER_POOL_ID }}
+          APIGW_CLOUDWATCH_ROLE_ARN=${{ secrets.APIGW_CLOUDWATCH_ROLE_ARN }}
           EOF
           
+          source .env
           # Load and deploy with parameter
           source <(grep COGNITO_USER_POOL_ID .env)
           
