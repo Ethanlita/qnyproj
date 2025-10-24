@@ -190,14 +190,14 @@ jobs:
           APIGW_CLOUDWATCH_ROLE_ARN=${{ secrets.APIGW_CLOUDWATCH_ROLE_ARN }}
           EOF
           
+          set -a
           source .env
-          # Load and deploy with parameter
-          source <(grep COGNITO_USER_POOL_ID .env)
-          
+          set +a
+
           sam deploy \
             --no-confirm-changeset \
             --no-fail-on-empty-changeset \
-            --parameter-overrides "MyCognitoUserPoolId=$COGNITO_USER_POOL_ID"
+            --parameter-overrides "MyCognitoUserPoolId=$COGNITO_USER_POOL_ID ApiGatewayCloudWatchRoleArn=$APIGW_CLOUDWATCH_ROLE_ARN"
           
           # Clean up
           rm .env
