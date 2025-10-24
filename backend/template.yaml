@@ -222,6 +222,13 @@ Resources:
         AllowHeaders: "'Content-Type,Authorization,X-Amz-Date,X-Api-Key'"
         MaxAge: "'3600'"
         AllowCredentials: true
+      Auth:
+        DefaultAuthorizer: CognitoAuthorizer
+        AddDefaultAuthorizerToCorsPreflight: false
+        Authorizers:
+          CognitoAuthorizer:
+            UserPoolArn:
+              Fn::Sub: arn:aws:cognito-idp:${AWS::Region}:${AWS::AccountId}:userpool/${MyCognitoUserPoolId}
       DefinitionBody:
         openapi: 3.0.1
         info:
@@ -258,6 +265,7 @@ Resources:
                 This endpoint does not require authentication.
               tags:
                 - Edge Diagnostics
+              security: []
               responses:
                 '200':
                   description: Request header information

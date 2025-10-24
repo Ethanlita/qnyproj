@@ -48,6 +48,7 @@ paths:
         This endpoint does not require authentication.
       tags:
         - Edge Diagnostics
+      security: []
       responses:
         "200":
           description: Request header information
