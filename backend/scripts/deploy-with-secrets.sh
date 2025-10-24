@@ -7,6 +7,30 @@ set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 BACKEND_DIR="$(dirname "$SCRIPT_DIR")"
+DEFAULT_STAGE="dev"
+AWS_REGION="${AWS_REGION:-us-east-1}"
+
+deploy_stage() {
+  local rest_api_id
+  rest_api_id=$(aws cloudformation describe-stacks \
+    --stack-name "$STACK_NAME" \
+    --region "$AWS_REGION" \
+    --query "Stacks[0].Outputs[?OutputKey=='ApiId'].OutputValue" \
+    --output text 2>/dev/null || echo "")
+
+  if [[ -z "$rest_api_id" || "$rest_api_id" == "None" ]]; then
+    echo "⚠️  Unable to determine API Gateway ID from stack outputs. Skipping stage deployment."
+    return
+  fi
+
+  echo "🚀 Deploying API Gateway stage '$DEFAULT_STAGE' for RestApi $rest_api_id..."
+  aws apigateway create-deployment \
+    --rest-api-id "$rest_api_id" \
+    --stage-name "$DEFAULT_STAGE" \
+    --region "$AWS_REGION" \
+    --description "Redeploy $(date -u +%Y-%m-%dT%H:%M:%SZ)" >/dev/null
+  echo "✅ Stage deployment triggered successfully."
+}
 
 # Parse arguments
 STACK_NAME="qnyproj-api"
@@ -61,6 +85,7 @@ while IFS= read -r line || [ -n "$line" ]; do
   export "$line"
 done < .env
 set +a
+AWS_REGION="${AWS_REGION:-us-east-1}"
 
 # Validate required Cognito variables
 if [ -z "$COGNITO_USER_POOL_ID" ]; then
@@ -86,6 +111,7 @@ if [ "$FIRST_DEPLOY" = true ]; then
   # Step 2: Deploy with guided mode
   echo "2️⃣  Deploying to AWS (guided mode)..."
   sam deploy --guided --parameter-overrides "MyCognitoUserPoolId=$COGNITO_USER_POOL_ID"
+  deploy_stage
   echo ""
   
   # Step 3: Sync secrets
@@ -106,6 +132,7 @@ else
   # Step 3: Deploy to AWS
   echo "3️⃣  Deploying to AWS..."
   sam deploy --no-confirm-changeset --no-fail-on-empty-changeset --parameter-overrides "MyCognitoUserPoolId=$COGNITO_USER_POOL_ID"
+  deploy_stage
   echo ""
 fi
 
