@@ -10,6 +10,9 @@ Parameters:
   MyCognitoUserPoolId:
     Type: String
     Description: The ID of the Cognito User Pool for authorization.
+  ApiGatewayCloudWatchRoleArn:
+    Type: String
+    Description: IAM role ARN that API Gateway uses to write access logs to CloudWatch.
   Environment:
     Type: String
     Default: dev
@@ -19,6 +22,15 @@ Parameters:
       - prod
     Description: Environment name
 Resources:
+  ApiGatewayAccessLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /aws/apigateway/${AWS::StackName}-dev
+      RetentionInDays: 14
+  ApiGatewayAccount:
+    Type: AWS::ApiGateway::Account
+    Properties:
+      CloudWatchRoleArn: !Ref ApiGatewayCloudWatchRoleArn
   # DynamoDB Table for all application data
   ComicDataTable:
     Type: AWS::DynamoDB::Table
@@ -216,6 +228,10 @@ Resources:
       StageName: dev
       EndpointConfiguration:
         Type: EDGE
+      AccessLogSetting:
+        DestinationArn: !GetAtt ApiGatewayAccessLogGroup.Arn
+        Format: >-
+          {"requestId":"$context.requestId","ip":"$context.identity.sourceIp","caller":"$context.identity.caller","user":"$context.identity.user","userAgent":"$context.identity.userAgent","requestTime":"$context.requestTime","httpMethod":"$context.httpMethod","resourcePath":"$context.resourcePath","status":"$context.status","authorizerError":"$context.authorizer.error","authorizerPrincipalId":"$context.authorizer.principalId","errorMessage":"$context.error.message","integrationStatus":"$context.integrationStatus","integrationError":"$context.integrationError"}
       Cors:
         AllowOrigin: "'https://ethanlita.github.io'"
         AllowMethods: "'GET,POST,PUT,DELETE,OPTIONS'"
@@ -229,6 +245,11 @@ Resources:
           CognitoAuthorizer:
             UserPoolArn:
               Fn::Sub: arn:aws:cognito-idp:${AWS::Region}:${AWS::AccountId}:userpool/${MyCognitoUserPoolId}
+      MethodSettings:
+        - LoggingLevel: INFO
+          MetricsEnabled: true
+          ResourcePath: "/*"
+          HttpMethod: "*"
       DefinitionBody:
         openapi: 3.0.1
         info:

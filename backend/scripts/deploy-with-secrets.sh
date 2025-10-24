@@ -94,7 +94,14 @@ if [ -z "$COGNITO_USER_POOL_ID" ]; then
   exit 1
 fi
 
+if [ -z "$APIGW_CLOUDWATCH_ROLE_ARN" ]; then
+  echo "❌ Error: APIGW_CLOUDWATCH_ROLE_ARN not found in .env"
+  echo "Please add: APIGW_CLOUDWATCH_ROLE_ARN=arn:aws:iam::<account>:role/YourApiGwRole"
+  exit 1
+fi
+
 echo "   ✅ COGNITO_USER_POOL_ID: $COGNITO_USER_POOL_ID"
+echo "   ✅ APIGW_CLOUDWATCH_ROLE_ARN: $APIGW_CLOUDWATCH_ROLE_ARN"
 echo ""
 
 if [ "$FIRST_DEPLOY" = true ]; then
@@ -110,7 +117,7 @@ if [ "$FIRST_DEPLOY" = true ]; then
   
   # Step 2: Deploy with guided mode
   echo "2️⃣  Deploying to AWS (guided mode)..."
-  sam deploy --guided --parameter-overrides "MyCognitoUserPoolId=$COGNITO_USER_POOL_ID"
+  sam deploy --guided --parameter-overrides "MyCognitoUserPoolId=$COGNITO_USER_POOL_ID ApiGatewayCloudWatchRoleArn=$APIGW_CLOUDWATCH_ROLE_ARN"
   deploy_stage
   echo ""
   
@@ -131,7 +138,7 @@ else
   
   # Step 3: Deploy to AWS
   echo "3️⃣  Deploying to AWS..."
-  sam deploy --no-confirm-changeset --no-fail-on-empty-changeset --parameter-overrides "MyCognitoUserPoolId=$COGNITO_USER_POOL_ID"
+  sam deploy --no-confirm-changeset --no-fail-on-empty-changeset --parameter-overrides "MyCognitoUserPoolId=$COGNITO_USER_POOL_ID ApiGatewayCloudWatchRoleArn=$APIGW_CLOUDWATCH_ROLE_ARN"
   deploy_stage
   echo ""
 fi

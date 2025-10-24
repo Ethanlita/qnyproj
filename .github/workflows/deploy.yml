@@ -108,6 +108,7 @@ jobs:
           GEMINI_MODEL=${{ secrets.GEMINI_MODEL || 'imagen-4.0-fast-generate-001' }}
           GEMINI_LOCATION=${{ secrets.GEMINI_LOCATION || 'us-central1' }}
           COGNITO_USER_POOL_ID=${{ secrets.COGNITO_USER_POOL_ID }}
+          APIGW_CLOUDWATCH_ROLE_ARN=${{ secrets.APIGW_CLOUDWATCH_ROLE_ARN }}
           AWS_REGION=${{ secrets.AWS_REGION }}
           EOF
           
