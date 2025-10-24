@@ -5,7 +5,7 @@
  */
 
 import { OpenAPI } from '../api/generated/core/OpenAPI';
-import { getAccessToken } from '../auth/cognito';
+import { getApiToken } from '../auth/cognito';
 
 /**
  * 初始化 API 配置
@@ -22,7 +22,7 @@ export function initializeApiConfig() {
 
   // 配置认证令牌获取函数
   OpenAPI.TOKEN = async () => {
-    const token = await getAccessToken();
+    const token = await getApiToken();
     if (token) {
       console.log('[API] Access token retrieved');
       return token;

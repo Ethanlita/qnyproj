@@ -16,6 +16,7 @@ interface AuthContextType {
   login: () => Promise<void>;
   logout: () => Promise<void>;
   getAccessToken: () => Promise<string | null>;
+  getApiToken: () => Promise<string | null>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -83,6 +84,9 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const getAccessToken = async () => {
     return authService.getAccessToken();
   };
+  const getApiToken = async () => {
+    return authService.getApiToken();
+  };
 
   const value: AuthContextType = {
     user,
@@ -91,6 +95,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     login,
     logout,
     getAccessToken,
+    getApiToken,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

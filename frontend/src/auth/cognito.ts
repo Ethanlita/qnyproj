@@ -127,6 +127,22 @@ export async function getAccessToken(): Promise<string | null> {
 }
 
 /**
+ * 获取用于调用受保护 API 的 Bearer Token
+ * 优先返回 ID Token，因 API Gateway Cognito Authorizer 对 ID Token 支持更稳定
+ */
+export async function getApiToken(): Promise<string | null> {
+  const user = await getUser();
+  if (user?.id_token) {
+    return user.id_token;
+  }
+  if (user?.access_token) {
+    console.warn('[Auth] Falling back to access token, consider checking Cognito configuration');
+    return user.access_token;
+  }
+  return null;
+}
+
+/**
  * 获取 ID 令牌
  */
 export async function getIdToken(): Promise<string | null> {
