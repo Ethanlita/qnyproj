@@ -14,9 +14,10 @@
   display: flex;
   flex-direction: column;
   padding: 36px 28px;
-  background: linear-gradient(180deg, #fef2f8 0%, #fbd3e9 50%, #f9a8d4 100%);
+  background: linear-gradient(180deg, #f8dbff 0%, #f5c0ec 45%, #ef9cd6 100%);
   color: #521a4b;
-  box-shadow: 12px 0 32px rgba(249, 168, 212, 0.28);
+  box-shadow: none;
+  border-right: 1px solid rgba(82, 26, 75, 0.12);
   z-index: 20;
   transition: transform 0.3s ease, box-shadow 0.3s ease;
 }
@@ -31,7 +32,7 @@
 
 .sidebarMobileOpen {
   transform: translateX(0);
-  box-shadow: 24px 0 48px rgba(236, 72, 153, 0.32);
+  box-shadow: none;
 }
 
 .brand {
@@ -154,10 +155,9 @@
   align-items: center;
   justify-content: space-between;
   gap: 16px;
-  padding: 16px 28px;
-  background: rgba(255, 255, 255, 0.85);
-  backdrop-filter: blur(10px);
-  border-bottom: 1px solid rgba(249, 168, 212, 0.32);
+  padding: 12px 28px;
+  background: #fff;
+  border-bottom: 1px solid rgba(249, 168, 212, 0.28);
 }
 
 .mobileToggle {
@@ -229,7 +229,7 @@
 
 .mainContent {
   flex: 1;
-  padding: 0 36px 48px;
+  padding: 32px 36px 48px;
 }
 
 .mobileBackdrop {
