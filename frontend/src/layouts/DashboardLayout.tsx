@@ -51,7 +51,7 @@ export function DashboardLayout() {
             <span className={styles.brandEmoji}>🖌️</span>
             <div className={styles.brandText}>
               <strong>Comic Studio</strong>
-              <span>M4 milestone workspace</span>
+              <span>全流程创作工作台</span>
             </div>
           </Link>
         </div>
@@ -78,14 +78,14 @@ export function DashboardLayout() {
           ))}
         </SidebarNav>
         <div className={styles.sidebarFooter}>
-          <p className={styles.sidebarHint}>M4 目标：修改闭环、高清批跑、导出中心</p>
+          <p className={styles.sidebarHint}>连接故事、角色、分镜的统一控制中心</p>
           <a
             href="https://github.com/Ethanlita/qnyproj"
             target="_blank"
             rel="noreferrer"
             className={styles.sidebarLink}
           >
-            项目文档 ↗
+            代码库 ↗
           </a>
         </div>
       </aside>
@@ -132,7 +132,7 @@ export function DashboardLayout() {
 function breadcrumbFromPath(pathname: string) {
   const segments = pathname.split('/').filter(Boolean);
   if (segments.length === 0) {
-    return <span>总览</span>;
+    return <span className={styles.breadcrumbHome}>总览</span>;
   }
 
   const crumbs = segments.map((segment, idx) => {

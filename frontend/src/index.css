@@ -2,8 +2,8 @@
   font-family: 'Inter', 'Segoe UI', system-ui, -apple-system, BlinkMacSystemFont, 'Helvetica Neue', Arial, sans-serif;
   line-height: 1.5;
   font-weight: 400;
-  color: #0f172a;
-  background-color: #f4f6fb;
+  color: #4b1d47;
+  background-color: #fff9fd;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
@@ -19,7 +19,7 @@
 body {
   margin: 0;
   min-height: 100vh;
-  background: linear-gradient(180deg, #f4f6fb 0%, #eef1f8 40%, #e7ebf5 100%);
+  background: linear-gradient(180deg, #fff9fd 0%, #fef2f8 45%, #fde7f4 100%);
 }
 
 a {

@@ -2,8 +2,8 @@
   display: grid;
   grid-template-columns: 280px 1fr;
   min-height: 100vh;
-  color: #0f172a;
-  background: linear-gradient(180deg, #f2f4ff 0%, #f8fafc 40%, #eef2ff 100%);
+  color: #4b1d47;
+  background: linear-gradient(180deg, #fff9fd 0%, #fef2f8 48%, #fde7f4 100%);
 }
 
 .sidebar {
@@ -14,9 +14,9 @@
   display: flex;
   flex-direction: column;
   padding: 36px 28px;
-  background: radial-gradient(circle at 20% 0%, #1e1b4b 0%, #111827 70%);
-  color: #f8fafc;
-  box-shadow: 12px 0 32px rgba(15, 23, 42, 0.18);
+  background: linear-gradient(180deg, #fef2f8 0%, #fbd3e9 50%, #f9a8d4 100%);
+  color: #521a4b;
+  box-shadow: 12px 0 32px rgba(249, 168, 212, 0.28);
   z-index: 20;
   transition: transform 0.3s ease, box-shadow 0.3s ease;
 }
@@ -31,7 +31,7 @@
 
 .sidebarMobileOpen {
   transform: translateX(0);
-  box-shadow: 24px 0 48px rgba(15, 23, 42, 0.4);
+  box-shadow: 24px 0 48px rgba(236, 72, 153, 0.32);
 }
 
 .brand {
@@ -44,16 +44,17 @@
   display: flex;
   flex-direction: column;
   line-height: 1.2;
+  gap: 2px;
 }
 
 .brandText strong {
-  font-size: 19px;
+  font-size: 20px;
   letter-spacing: 0.6px;
 }
 
 .brandText span {
   font-size: 12px;
-  color: rgba(226, 232, 240, 0.68);
+  color: rgba(82, 26, 75, 0.65);
 }
 
 .brandEmoji {
@@ -64,16 +65,16 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  background: rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.6);
 }
 
 .closeSidebar {
   display: none;
   align-self: flex-end;
   margin-bottom: 24px;
-  background: rgba(148, 163, 184, 0.15);
+  background: rgba(255, 255, 255, 0.55);
   border: none;
-  color: #e2e8f0;
+  color: #521a4b;
   width: 36px;
   height: 36px;
   border-radius: 50%;
@@ -94,22 +95,22 @@
   gap: 12px;
   padding: 12px 14px;
   border-radius: 12px;
-  color: rgba(226, 232, 240, 0.78);
+  color: rgba(82, 26, 75, 0.76);
   font-size: 15px;
   transition: background 0.2s ease, color 0.2s ease, transform 0.2s ease;
 }
 
 .navItem:hover {
-  background: rgba(255, 255, 255, 0.12);
-  color: #fff;
+  background: rgba(255, 255, 255, 0.6);
+  color: #7a1c62;
   transform: translateX(4px);
 }
 
 .navItemActive {
-  background: linear-gradient(135deg, #6366f1, #8b5cf6);
-  color: #fff;
+  background: linear-gradient(135deg, #fbcfe8, #f9a8d4);
+  color: #4b1d47;
   font-weight: 600;
-  box-shadow: 0 10px 22px rgba(99, 102, 241, 0.3);
+  box-shadow: 0 12px 28px rgba(249, 168, 212, 0.35);
 }
 
 .navIcon {
@@ -121,18 +122,18 @@
 .sidebarFooter {
   margin-top: auto;
   font-size: 12px;
-  color: rgba(226, 232, 240, 0.6);
+  color: rgba(82, 26, 75, 0.68);
   display: flex;
   flex-direction: column;
   gap: 12px;
 }
 
 .sidebarLink {
-  color: rgba(226, 232, 240, 0.85);
+  color: rgba(82, 26, 75, 0.85);
 }
 
 .sidebarLink:hover {
-  color: #fff;
+  color: #9d1f69;
   text-decoration: underline;
 }
 
@@ -145,7 +146,7 @@
   display: flex;
   flex-direction: column;
   min-height: 100vh;
-  backdrop-filter: blur(10px);
+  background: linear-gradient(180deg, rgba(255, 247, 252, 0.94) 0%, rgba(255, 246, 250, 0.9) 100%);
 }
 
 .topbar {
@@ -153,14 +154,17 @@
   align-items: center;
   justify-content: space-between;
   gap: 16px;
-  padding: 24px 36px;
+  padding: 16px 28px;
+  background: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(10px);
+  border-bottom: 1px solid rgba(249, 168, 212, 0.32);
 }
 
 .mobileToggle {
   display: none;
   border: none;
-  background: rgba(99, 102, 241, 0.12);
-  color: #4338ca;
+  background: rgba(249, 168, 212, 0.25);
+  color: #7a1c62;
   width: 40px;
   height: 40px;
   border-radius: 12px;
@@ -170,11 +174,20 @@
 
 .topbarBreadcrumb {
   font-size: 14px;
-  color: #475569;
+  color: #7a1c62;
   display: flex;
   gap: 6px;
   align-items: center;
   font-weight: 500;
+}
+
+.breadcrumbHome {
+  font-size: 18px;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  background: linear-gradient(90deg, #f9a8d4, #f472b6);
+  -webkit-background-clip: text;
+  color: transparent;
 }
 
 .breadcrumbSegment a {
@@ -183,11 +196,11 @@
 }
 
 .breadcrumbSegment a:hover {
-  color: #1d4ed8;
+  color: #c26ca6;
 }
 
 .breadcrumbDivider {
-  color: #cbd5f5;
+  color: rgba(249, 168, 212, 0.5);
   padding: 0 4px;
 }
 
@@ -201,17 +214,17 @@
   padding: 8px 18px;
   border-radius: 999px;
   border: none;
-  background: linear-gradient(135deg, #60a5fa, #2563eb);
-  color: #fff;
+  background: linear-gradient(135deg, #fbcfe8, #f9a8d4);
+  color: #4b1d47;
   font-size: 14px;
   cursor: pointer;
-  box-shadow: 0 4px 12px rgba(37, 99, 235, 0.22);
+  box-shadow: 0 4px 14px rgba(249, 168, 212, 0.3);
   transition: transform 0.18s ease, box-shadow 0.18s ease;
 }
 
 .loginButton:hover {
   transform: translateY(-2px);
-  box-shadow: 0 8px 18px rgba(37, 99, 235, 0.3);
+  box-shadow: 0 8px 18px rgba(249, 168, 212, 0.36);
 }
 
 .mainContent {
@@ -222,7 +235,7 @@
 .mobileBackdrop {
   position: fixed;
   inset: 0;
-  background: rgba(15, 23, 42, 0.45);
+  background: rgba(122, 28, 98, 0.22);
   z-index: 15;
   opacity: 0;
   pointer-events: none;
@@ -258,6 +271,10 @@
     transform: translateX(-110%);
     height: 100%;
     padding: 28px 24px;
+  }
+
+  .sidebarMobileOpen {
+    transform: translateX(0);
   }
 
   .closeSidebar {

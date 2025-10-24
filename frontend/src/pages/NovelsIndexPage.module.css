@@ -7,32 +7,32 @@
 .hero {
   display: flex;
   flex-wrap: wrap;
-  align-items: flex-end;
+  align-items: flex-start;
   justify-content: space-between;
   gap: 20px;
   padding: 28px 32px;
   border-radius: 24px;
-  background: rgba(255, 255, 255, 0.88);
-  box-shadow: 0 24px 40px rgba(15, 23, 42, 0.12);
-  border: 1px solid rgba(226, 232, 240, 0.7);
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.97), rgba(255, 246, 252, 0.9));
+  box-shadow: 0 24px 44px rgba(249, 168, 212, 0.18);
+  border: 1px solid rgba(249, 168, 212, 0.24);
 }
 
 .hero h1 {
   margin: 0 0 6px;
   font-size: 28px;
-  color: #111827;
+  color: #7a1c62;
 }
 
 .hero p {
   margin: 0;
-  color: #475569;
+  color: #9d1f69;
   max-width: 520px;
   line-height: 1.6;
 }
 
 .heroActions {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 16px;
 }
 
@@ -40,17 +40,18 @@
   padding: 12px 22px;
   border-radius: 12px;
   border: none;
-  background: linear-gradient(135deg, #6366f1, #8b5cf6);
-  color: #fff;
+  background: linear-gradient(135deg, #fbcfe8, #f9a8d4);
+  color: #4b1d47;
   font-weight: 600;
   cursor: pointer;
-  box-shadow: 0 18px 28px rgba(99, 102, 241, 0.28);
+  box-shadow: 0 18px 30px rgba(249, 168, 212, 0.3);
   transition: transform 0.2s ease, box-shadow 0.2s ease;
+  margin-top: 26px;
 }
 
 .primaryButton:hover {
   transform: translateY(-2px);
-  box-shadow: 0 24px 34px rgba(99, 102, 241, 0.34);
+  box-shadow: 0 24px 34px rgba(249, 168, 212, 0.34);
 }
 
 .jumpForm {
@@ -63,7 +64,7 @@
   font-size: 12px;
   text-transform: uppercase;
   letter-spacing: 0.08em;
-  color: #94a3b8;
+  color: #c26ca6;
 }
 
 .jumpForm div {
@@ -73,7 +74,7 @@
 
 .jumpForm input {
   border-radius: 12px;
-  border: 1px solid rgba(148, 163, 184, 0.5);
+  border: 1px solid rgba(249, 168, 212, 0.4);
   padding: 10px 14px;
   font-size: 14px;
   min-width: 220px;
@@ -81,16 +82,16 @@
 }
 
 .jumpForm input:focus {
-  border-color: #6366f1;
-  box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.15);
+  border-color: #f9a8d4;
+  box-shadow: 0 0 0 4px rgba(249, 168, 212, 0.25);
   outline: none;
 }
 
 .jumpForm button {
   border-radius: 10px;
   border: none;
-  background: rgba(99, 102, 241, 0.16);
-  color: #4f46e5;
+  background: rgba(249, 168, 212, 0.26);
+  color: #7a1c62;
   font-weight: 600;
   padding: 10px 16px;
   cursor: pointer;
@@ -113,23 +114,23 @@
 .chipActive {
   padding: 8px 14px;
   border-radius: 999px;
-  border: 1px solid rgba(148, 163, 184, 0.4);
-  background: rgba(248, 250, 252, 0.9);
+  border: 1px solid rgba(249, 168, 212, 0.3);
+  background: rgba(255, 249, 253, 0.92);
   font-size: 13px;
-  color: #334155;
+  color: #7a1c62;
   cursor: pointer;
   transition: border-color 0.2s ease, background 0.2s ease;
 }
 
 .chipActive {
-  border-color: rgba(99, 102, 241, 0.38);
-  background: rgba(99, 102, 241, 0.14);
-  color: #4338ca;
+  border-color: rgba(249, 168, 212, 0.48);
+  background: rgba(249, 168, 212, 0.24);
+  color: #4b1d47;
 }
 
 .totalCount {
   font-size: 13px;
-  color: #64748b;
+  color: rgba(122, 28, 98, 0.6);
 }
 
 .errorBox {
@@ -138,27 +139,27 @@
   justify-content: space-between;
   padding: 18px 24px;
   border-radius: 16px;
-  border: 1px solid rgba(248, 113, 113, 0.35);
-  background: rgba(254, 226, 226, 0.72);
-  color: #b91c1c;
+  border: 1px solid rgba(248, 113, 113, 0.3);
+  background: rgba(254, 226, 226, 0.82);
+  color: #be123c;
   gap: 20px;
 }
 
 .errorBox button {
   border-radius: 10px;
   border: none;
-  background: rgba(248, 113, 113, 0.18);
-  color: #b91c1c;
+  background: rgba(248, 113, 113, 0.16);
+  color: #be123c;
   padding: 10px 16px;
   cursor: pointer;
 }
 
 .gridSection {
-  background: rgba(255, 255, 255, 0.92);
+  background: rgba(255, 249, 253, 0.95);
   border-radius: 24px;
   padding: 24px 28px 32px;
-  box-shadow: 0 24px 48px rgba(15, 23, 42, 0.12);
-  border: 1px solid rgba(226, 232, 240, 0.7);
+  box-shadow: 0 24px 48px rgba(249, 168, 212, 0.18);
+  border: 1px solid rgba(249, 168, 212, 0.24);
 }
 
 .loadingState,
@@ -169,15 +170,15 @@
   justify-content: center;
   gap: 16px;
   padding: 80px 20px;
-  color: #475569;
+  color: #7a1c62;
 }
 
 .spinner {
   width: 44px;
   height: 44px;
   border-radius: 50%;
-  border: 4px solid rgba(148, 163, 184, 0.3);
-  border-top-color: #6366f1;
+  border: 4px solid rgba(252, 207, 232, 0.4);
+  border-top-color: #f9a8d4;
   animation: spin 1s linear infinite;
 }
 
@@ -189,12 +190,12 @@
 .emptyState h2 {
   margin: 0;
   font-weight: 500;
-  color: #1e293b;
+  color: #7a1c62;
 }
 
 .emptyState p {
   margin: 0;
-  color: #94a3b8;
+  color: rgba(122, 28, 98, 0.65);
 }
 
 .emptyState button {
@@ -202,8 +203,8 @@
   border: none;
   border-radius: 12px;
   padding: 12px 20px;
-  background: linear-gradient(135deg, #38bdf8, #6366f1);
-  color: #fff;
+  background: linear-gradient(135deg, #fbcfe8, #f9a8d4);
+  color: #4b1d47;
   cursor: pointer;
 }
 
@@ -219,16 +220,16 @@
   gap: 16px;
   padding: 20px;
   border-radius: 18px;
-  background: rgba(248, 250, 252, 0.95);
-  border: 1px solid rgba(226, 232, 240, 0.7);
-  box-shadow: 0 16px 28px rgba(15, 23, 42, 0.1);
+  background: rgba(255, 249, 253, 0.96);
+  border: 1px solid rgba(249, 168, 212, 0.24);
+  box-shadow: 0 16px 28px rgba(249, 168, 212, 0.18);
   cursor: pointer;
   transition: transform 0.18s ease, box-shadow 0.18s ease;
 }
 
 .card:hover {
   transform: translateY(-3px);
-  box-shadow: 0 24px 40px rgba(15, 23, 42, 0.16);
+  box-shadow: 0 24px 38px rgba(249, 168, 212, 0.24);
 }
 
 .card header {
@@ -241,7 +242,7 @@
 .card h3 {
   margin: 0;
   font-size: 18px;
-  color: #111827;
+  color: #7a1c62;
 }
 
 .statusBadge {
@@ -249,33 +250,33 @@
   border-radius: 999px;
   font-size: 12px;
   font-weight: 600;
-  background: rgba(148, 163, 184, 0.18);
-  color: #475569;
+  background: rgba(255, 249, 253, 0.92);
+  color: #7a1c62;
 }
 
 .status-created {
-  background: rgba(203, 213, 225, 0.24);
-  color: #475569;
+  background: rgba(249, 168, 212, 0.2);
+  color: #7a1c62;
 }
 
 .status-analyzed {
-  background: rgba(74, 222, 128, 0.18);
+  background: rgba(187, 247, 208, 0.24);
   color: #15803d;
 }
 
 .status-analyzing,
 .status-generating {
-  background: rgba(96, 165, 250, 0.18);
-  color: #1d4ed8;
+  background: rgba(216, 180, 254, 0.24);
+  color: #7c3aed;
 }
 
 .status-completed {
-  background: rgba(129, 140, 248, 0.18);
-  color: #4338ca;
+  background: rgba(216, 180, 254, 0.24);
+  color: #5b21b6;
 }
 
 .status-error {
-  background: rgba(248, 113, 113, 0.18);
+  background: rgba(254, 205, 211, 0.28);
   color: #b91c1c;
 }
 
@@ -288,13 +289,13 @@
 
 .card dt {
   font-size: 12px;
-  color: #94a3b8;
+  color: rgba(122, 28, 98, 0.55);
   text-transform: uppercase;
 }
 
 .card dd {
   margin: 2px 0 0;
-  color: #1e293b;
+  color: #4b1d47;
   font-size: 14px;
 }
 
@@ -303,16 +304,16 @@
   justify-content: space-between;
   align-items: center;
   font-size: 12px;
-  color: #94a3b8;
-  border-top: 1px dashed rgba(148, 163, 184, 0.3);
+  color: rgba(122, 28, 98, 0.55);
+  border-top: 1px dashed rgba(249, 168, 212, 0.4);
   padding-top: 12px;
 }
 
 .card code {
-  background: rgba(15, 23, 42, 0.08);
+  background: rgba(249, 168, 212, 0.18);
   padding: 4px 6px;
   border-radius: 6px;
-  color: #0f172a;
+  color: #7a1c62;
 }
 
 .loadMore {
@@ -324,9 +325,9 @@
 .secondaryButton {
   padding: 10px 18px;
   border-radius: 12px;
-  border: 1px solid rgba(148, 163, 184, 0.5);
-  background: rgba(248, 250, 252, 0.9);
-  color: #334155;
+  border: 1px solid rgba(249, 168, 212, 0.32);
+  background: rgba(255, 249, 253, 0.96);
+  color: #7a1c62;
   cursor: pointer;
 }
 

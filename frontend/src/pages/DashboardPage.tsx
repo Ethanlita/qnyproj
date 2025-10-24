@@ -204,8 +204,8 @@ export function DashboardPage() {
 
           <article className={styles.cardGuide}>
             <header>
-              <h2>M4 操作指引</h2>
-              <span>三步完成修改闭环</span>
+              <h2>操作指引</h2>
+              <span>三步完成创作闭环</span>
             </header>
             <ol className={styles.actionList}>
               <li>

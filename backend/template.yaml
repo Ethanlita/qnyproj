@@ -2044,11 +2044,16 @@ Resources:
                   minimum: 0
                 storageLocation:
                   type: string
-          securitySchemes:
-            CognitoAuthorizer:
-              type: openIdConnect
-              openIdConnectUrl:
-                Fn::Sub: https://cognito-idp.${AWS::Region}.amazonaws.com/${MyCognitoUserPoolId}
+    securitySchemes:
+      CognitoAuthorizer:
+        type: openIdConnect
+        openIdConnectUrl:
+          Fn::Sub: https://cognito-idp.${AWS::Region}.amazonaws.com/${MyCognitoUserPoolId}
+        x-amazon-apigateway-authorizer:
+          type: cognito_user_pools
+          providerARNs:
+            - Fn::Sub: arn:aws:cognito-idp:${AWS::Region}:${AWS::AccountId}:userpool/${MyCognitoUserPoolId}
+        x-amazon-apigateway-authtype: cognito_user_pools
       CacheClusterEnabled: false
   HelloWorldFunction:
     Type: AWS::Serverless::Function
