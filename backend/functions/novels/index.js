@@ -24,7 +24,7 @@ exports.handler = async (event) => {
 
     const method = event.httpMethod || event.requestContext?.http?.method;
     const path = event.rawPath || event.path || '';
-    const userId = getUserId(event) || 'anonymous';
+    const userId = getUserId(event);
 
     // Handle OPTIONS preflight request
     if (method === 'OPTIONS') {
@@ -38,6 +38,10 @@ exports.handler = async (event) => {
         },
         body: ''
       };
+    }
+
+    if (!userId) {
+      return errorResponse(401, 'Unauthorized');
     }
 
     if (method === 'GET' && isRootPath(path)) {

@@ -36,7 +36,10 @@ exports.handler = async (event) => {
       return errorResponse(400, 'Missing storyboard ID');
     }
 
-    const userId = getUserId(event) || 'anonymous';
+    const userId = getUserId(event);
+    if (!userId) {
+      return errorResponse(401, 'Unauthorized');
+    }
     console.log(`[StoryboardsFunction] user=${userId} storyboard=${storyboardId}`);
 
     const panels = await loadPanels(storyboardId);

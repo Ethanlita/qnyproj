@@ -53,7 +53,10 @@ exports.handler = async (event) => {
       return errorResponse(500, 'ASSETS_BUCKET environment variable not set');
     }
 
-    const userId = getUserId(event) || 'anonymous';
+    const userId = getUserId(event);
+    if (!userId) {
+      return errorResponse(401, 'Unauthorized');
+    }
     const body = JSON.parse(event.body || '{}');
     const { novelId, naturalLanguage, context = {} } = body;
 

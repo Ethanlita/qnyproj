@@ -161,10 +161,13 @@ exports.handler = async (event) => {
     }
 
     const novelId = event.pathParameters?.id;
-    const userId = getUserId(event) || 'mock-user';
+    const userId = getUserId(event);
     
     if (!novelId) {
       return errorResponse(400, 'Missing novel ID');
+    }
+    if (!userId) {
+      return errorResponse(401, 'Unauthorized');
     }
     
     console.log(`[AnalyzeNovel] Creating analysis task for novel ${novelId}, user ${userId}`);
@@ -193,6 +196,5 @@ exports.handler = async (event) => {
     return errorResponse(500, error.message);
   }
 };
-
 
 

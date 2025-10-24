@@ -33,7 +33,10 @@ exports.handler = async (event) => {
     }
 
     if (method === 'GET' && isListPath(path) && !event.pathParameters?.id) {
-      const userId = getUserId(event) || 'anonymous';
+      const userId = getUserId(event);
+      if (!userId) {
+        return errorResponse(401, 'Unauthorized');
+      }
       return await handleListJobs(event, userId);
     }
 
@@ -42,7 +45,10 @@ exports.handler = async (event) => {
       return errorResponse(400, 'Missing job ID');
     }
 
-    const userId = getUserId(event) || 'anonymous';
+    const userId = getUserId(event);
+    if (!userId) {
+      return errorResponse(401, 'Unauthorized');
+    }
 
     const job = await loadJob(jobId);
     if (!job) {

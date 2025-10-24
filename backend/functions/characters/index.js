@@ -56,7 +56,10 @@ exports.handler = async (event) => {
 
     const rawPath = event.rawPath || event.path || '';
     const path = rawPath.replace(/^\/dev/i, '');
-    const userId = getUserId(event) || 'anonymous';
+    const userId = getUserId(event);
+    if (!userId) {
+      return errorResponse(401, 'Unauthorized');
+    }
 
     console.log(`[CharactersFunction] ${method} ${rawPath} (user: ${userId})`);
 
@@ -675,5 +678,4 @@ async function rollbackUploadedFiles(s3Keys) {
   
   return failures;
 }
-
 

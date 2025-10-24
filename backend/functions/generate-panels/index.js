@@ -41,7 +41,10 @@ exports.handler = async (event) => {
 
     const storyboardId = event.pathParameters?.id;
     const mode = (event.queryStringParameters?.mode || 'preview').toLowerCase();
-    const userId = getUserId(event) || 'anonymous';
+    const userId = getUserId(event);
+    if (!userId) {
+      return errorResponse(401, 'Unauthorized');
+    }
 
     if (!storyboardId) {
       return errorResponse(400, 'Missing storyboard ID');
@@ -220,4 +223,3 @@ async function markPanelsInProgress(storyboardId, tasks, timestamp) {
     }
   }
 }
-

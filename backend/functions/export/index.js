@@ -56,7 +56,10 @@ exports.handler = async (event) => {
       return errorResponse(500, 'ASSETS_BUCKET environment variable not set');
     }
 
-    const userId = getUserId(event) || 'anonymous';
+    const userId = getUserId(event);
+    if (!userId) {
+      return errorResponse(401, 'Unauthorized');
+    }
 
     if (method === 'POST') {
       return await handleCreateExport(event, userId);
@@ -662,4 +665,3 @@ const CRC_TABLE = (() => {
   }
   return table;
 })();
-

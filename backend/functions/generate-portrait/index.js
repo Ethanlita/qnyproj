@@ -51,7 +51,10 @@ exports.handler = async (event) => {
       return errorResponse(400, 'charId and configId are required');
     }
 
-    const userId = getUserId(event) || 'anonymous';
+    const userId = getUserId(event);
+    if (!userId) {
+      return errorResponse(401, 'Unauthorized');
+    }
     console.log(`[GeneratePortrait] user=${userId} char=${charId} config=${configId}`);
 
     const character = await loadCharacter(charId);
@@ -419,4 +422,3 @@ async function getImagenAdapter() {
   }
   return imagenAdapterPromise;
 }
-
