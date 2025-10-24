@@ -46,9 +46,21 @@ fi
 
 cd "$BACKEND_DIR"
 
-# Load environment variables from .env
+# Load environment variables from .env (normalize CRLF, ignore comments/blanks)
 echo "📋 Loading environment variables from .env..."
-export $(grep -v '^#' .env | xargs)
+set -a
+while IFS= read -r line || [ -n "$line" ]; do
+  # Remove trailing carriage returns for Windows compatibility
+  line="${line%$'\r'}"
+  # Trim leading/trailing whitespace
+  line="$(echo "$line" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')"
+  # Skip empty lines and comments
+  if [[ -z "$line" || "$line" == \#* ]]; then
+    continue
+  fi
+  export "$line"
+done < .env
+set +a
 
 # Validate required Cognito variables
 if [ -z "$COGNITO_USER_POOL_ID" ]; then

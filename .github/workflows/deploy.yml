@@ -46,6 +46,9 @@ jobs:
         with:
           python-version: '3.11'
 
+      - name: Verify OpenAPI definitions
+        run: npm run verify:openapi
+
       - name: Setup AWS SAM
         uses: aws-actions/setup-sam@v2
         with:
@@ -322,6 +325,11 @@ jobs:
       - name: Install root dependencies
         run: npm install
 
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
       - name: Setup pnpm
         uses: pnpm/action-setup@v3
         with:
@@ -334,6 +342,9 @@ jobs:
 
       - name: Generate OpenAPI and API client
         run: npm run generate:frontend-api
+
+      - name: Verify OpenAPI definitions
+        run: npm run verify:openapi
 
       - name: TypeScript check
         run: |

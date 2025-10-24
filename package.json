@@ -10,6 +10,7 @@
     "dev:frontend": "npm run copy:openapi && cd frontend && pnpm run dev",
     "build:frontend": "npm run generate:frontend-api && cd frontend && pnpm run build",
     "deploy:backend": "cd backend && ./scripts/deploy-with-secrets.sh",
+    "verify:openapi": "python3 scripts/verify-openapi-sync.py",
     "sync:secrets": "cd backend && node scripts/sync-secrets.js",
     "test:secrets": "cd backend && node scripts/test-secrets.js",
     "test:contract": "npx dredd",
