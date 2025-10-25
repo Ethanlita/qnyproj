@@ -965,7 +965,6 @@ export function NovelDetailPage() {
                     <div className={styles.bibleCardHeader}>
                       <div>
                         <strong>{character.name}</strong>
-                        <span>{character.role}</span>
                       </div>
                       <button
                         type="button"

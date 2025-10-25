@@ -33,7 +33,7 @@
 ## 🔧 环境准备
 
 ### 必需工具
-- **Node.js** (推荐 v18+)
+- **Node.js** (推荐 v22.17.1，至少 v22.0.0)
 - **pnpm** - 前端包管理器：`npm install -g pnpm`
 - **AWS CLI**: https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html
 - **AWS SAM CLI**: https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/install-sam-cli.html
