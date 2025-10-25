@@ -343,6 +343,9 @@ npm run generate:frontend-api
 2. 若仍旧 401，清除本地缓存重新登录（确保生成的新 ID Token 未过期），再重试 `curl -H "Authorization: Bearer <id_token>" https://.../dev/your-endpoint`。
 3. 必要时使用 `aws apigateway test-invoke-authorizer` 并把 ID Token 传入 `Authorization` 头，确认鉴权层通过后再排查后端。
 
+### 问题：`npm audit` 在根目录报告 Dredd 相关漏洞
+**说明**: API contract 测试依赖的 [Dredd](https://github.com/apiaryio/dredd) 及其传递依赖目前存在公开漏洞，已放在 `devDependencies`。它只在执行 `npm run test:contract*` 时使用，生产部署会通过 `npm ci --omit=dev` 跳过。若本地 `npm install` 仍看到告警，可忽略或在隔离环境中运行 contract 测试；等上游修复后再升级。
+
 ## 🤖 CI/CD 自动部署
 
 本项目使用 GitHub Actions 实现完全自动化的 CI/CD 流程。

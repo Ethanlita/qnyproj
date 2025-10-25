@@ -22,8 +22,10 @@
     "node": ">=22.0.0"
   },
   "dependencies": {
-    "dredd": "^14.1.0",
     "js-yaml": "^4.1.0",
     "yaml": "^2.8.1"
+  },
+  "devDependencies": {
+    "dredd": "^14.1.0"
   }
 }
