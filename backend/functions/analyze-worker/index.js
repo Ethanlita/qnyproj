@@ -655,6 +655,8 @@ exports.handler = async (event) => {
           chapterNumber
         });
 
+        sanitizeReferenceImages(storyboard);
+
         console.log(`[AnalyzeWorker] Storyboard generated (attempt ${attempt + 1})`);
         console.log(`  - Panels: ${storyboard.panels.length}`);
         console.log(`  - Characters: ${storyboard.characters.length}`);
@@ -814,6 +816,34 @@ function hasReferenceImage(entry) {
     return false;
   }
   return entry.referenceImages.some((image) => image && (image.s3Key || image.url));
+}
+
+function sanitizeReferenceImages(storyboard) {
+  if (!storyboard || typeof storyboard !== 'object') {
+    return;
+  }
+
+  const normalize = (entries = []) => {
+    entries.forEach((entry) => {
+      if (!entry || !Array.isArray(entry.referenceImages)) {
+        return;
+      }
+      entry.referenceImages = entry.referenceImages
+        .map((value) => {
+          if (typeof value === 'string') {
+            return value.trim();
+          }
+          if (value && typeof value === 'object') {
+            return value.s3Key || value.url || value.href || value.id || null;
+          }
+          return null;
+        })
+        .filter((ref) => typeof ref === 'string' && ref.length > 0);
+    });
+  };
+
+  normalize(storyboard.characters);
+  normalize(storyboard.scenes);
 }
 
 module.exports.lambdaHandler = exports.handler;
