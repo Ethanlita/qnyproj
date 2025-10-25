@@ -7,12 +7,22 @@
  *   node scripts/clear-sqs.js --queues=https://...,https://... --types=analyze,reference_image
  */
 
+const path = require('path');
+const Module = require('module');
+
+const existingNodePath = process.env.NODE_PATH ? process.env.NODE_PATH.split(path.delimiter) : [];
+const backendNodeModules = path.resolve(__dirname, '../backend/node_modules');
+const nodePathEntries = [backendNodeModules, ...existingNodePath].filter(Boolean);
+process.env.NODE_PATH = Array.from(new Set(nodePathEntries)).join(path.delimiter);
+Module._initPaths();
+
 const { SQSClient, PurgeQueueCommand } = require('@aws-sdk/client-sqs');
 const { DynamoDBClient } = require('@aws-sdk/client-dynamodb');
 const { DynamoDBDocumentClient, ScanCommand, UpdateCommand } = require('@aws-sdk/lib-dynamodb');
 
 const sqsClient = new SQSClient({});
 const dynamoClient = DynamoDBDocumentClient.from(new DynamoDBClient({}));
+const shouldSkipPurge = process.argv.includes('--skip-purge');
 
 function parseArg(name) {
   const prefix = `--${name}=`;
@@ -118,8 +128,12 @@ async function main() {
 
   const jobTypes = resolveJobTypes();
 
-  for (const queueUrl of queueUrls) {
-    await purgeQueue(queueUrl);
+  if (shouldSkipPurge) {
+    console.log('⏭️  跳过 SQS Purge（--skip-purge 已启用）');
+  } else {
+    for (const queueUrl of queueUrls) {
+      await purgeQueue(queueUrl);
+    }
   }
 
   const affected = await markJobsFailed(tableName, jobTypes);
