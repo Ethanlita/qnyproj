@@ -196,6 +196,12 @@ function buildSystemPrompt(schema, options = {}) {
 10. **分页规范**：每页 6 个面板，index 从 0-5
 11. **场景圣经（Scene Bible）**：为重复出现的场景创建统一视觉定义，确保跨章节一致性
 
+🌐 **语言要求**：
+
+- 所有文字类字段（包括 panels[].scene、panels[].background / atmosphere、panels[].characters[].pose & expression、dialogue、narrativeFunction、visualPrompt，以及 scenes / characters 梳理出来的描述）必须使用**简体中文**。
+- Imagen Prompt（visualPrompt）也需要使用简体中文描述画面，不要混入英文提示词。
+- 除变量名、接口字段名或必要的专有名词外，请避免英文单词或拼音。
+
 📋 **JSON Schema 字段说明**：
 
 以下是完整的输出结构定义。所有字段说明都直接来自 JSON Schema，是唯一的事实来源。
