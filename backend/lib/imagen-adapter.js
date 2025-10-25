@@ -107,24 +107,7 @@ class ImagenAdapter {
 
     this.logger?.info?.(`[ImagenAdapter] Editing image with prompt: "${truncate(prompt, 100)}"`);
 
-    // Build contents array: prompt + source image
-    const contents = [{
-      role: 'user',
-      parts: [
-        { text: prompt },
-        {
-          inline_data: {
-            mime_type: 'image/png',
-            data: base64Image
-          }
-        }
-      ]
-    }];
-
-    // Call Gemini API (same as generate, but with image input)
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/${this.model}:generateContent?key=${this.apiKey}`;
-
-    const outputSize =
+    const desiredSize =
       size ||
       (mode === 'hd'
         ? { width: 1920, height: 1080 }
@@ -132,24 +115,36 @@ class ImagenAdapter {
           ? { width: 512, height: 288 }
           : null);
 
+    const inlineImagePart = {
+      inline_data: {
+        mime_type: 'image/png',
+        data: base64Image
+      }
+    };
+    const decoratedPrompt = buildPromptWithDirectives(prompt, {
+      aspectRatio,
+      mode,
+      size: desiredSize
+    });
+    const userParts = [{ text: decoratedPrompt }, inlineImagePart];
+    if (negativePrompt) {
+      userParts.push({ text: `Negative prompt: ${negativePrompt}` });
+    }
+    const contents = [
+      {
+        role: 'user',
+        parts: userParts
+      }
+    ];
+
+    // Call Gemini API (same as generate, but with image input)
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${this.model}:generateContent?key=${this.apiKey}`;
+
     const body = {
       contents,
       generationConfig: {
         responseModalities: ['Image'],
-        outputOptions: {
-          aspectRatio: aspectRatio,
-          ...(outputSize && {
-            size: {
-              widthPixels: outputSize.width,
-              heightPixels: outputSize.height
-            }
-          })
-        },
-        ...(negativePrompt && {
-          negativePrompt: {
-            text: negativePrompt
-          }
-        })
+        responseMimeType: 'image/png'
       }
     };
 
@@ -258,12 +253,21 @@ class ImagenAdapter {
     }
 
     const url = `${this.baseUrl}/v1beta/models/${this.model}:generateContent?key=${this.apiKey}`;
+
+    const desiredSize =
+      size ||
+      (mode === 'hd'
+        ? { width: 1920, height: 1080 }
+        : mode === 'preview'
+          ? { width: 512, height: 288 }
+          : null);
     
     // Build contents array: text prompt + reference images
+    const promptText = buildPromptWithDirectives(prompt, { aspectRatio, mode, size: desiredSize });
     const contents = [
       {
         role: 'user',
-        parts: [{ text: prompt }]
+        parts: [{ text: promptText }]
       }
     ];
 
@@ -308,38 +312,15 @@ class ImagenAdapter {
       }
     }
 
-    const outputSize =
-      size ||
-      (mode === 'hd'
-        ? { width: 1920, height: 1080 }
-        : mode === 'preview'
-          ? { width: 512, height: 288 }
-          : null);
-
     const generationConfig = {
       responseMimeType: 'image/png',
-      responseModalities: ['Image'],
-      ...(negativePrompt
-        ? {
-            negativePrompt: {
-              text: negativePrompt
-            }
-          }
-        : {})
+      responseModalities: ['Image']
     };
 
-    const hasOutputOptions = Boolean(aspectRatio || outputSize);
-    if (hasOutputOptions) {
-      generationConfig.outputOptions = {};
-      if (aspectRatio) {
-        generationConfig.outputOptions.aspectRatio = aspectRatio;
-      }
-      if (outputSize) {
-        generationConfig.outputOptions.size = {
-          widthPixels: outputSize.width,
-          heightPixels: outputSize.height
-        };
-      }
+    if (negativePrompt) {
+      contents[0].parts.push({
+        text: `Negative prompt: ${negativePrompt}`
+      });
     }
 
     const body = {
@@ -375,6 +356,26 @@ class ImagenAdapter {
       requestId: payload?.responseId || payload?.requestId || `gemini-${Date.now()}`
     };
   }
+}
+
+function buildPromptWithDirectives(prompt, options = {}) {
+  const lines = [prompt];
+  const directives = [];
+  if (options.aspectRatio) {
+    directives.push(`Aspect Ratio: ${options.aspectRatio}`);
+  }
+  if (options.size && options.size.width && options.size.height) {
+    directives.push(`Target Size: ${options.size.width}x${options.size.height}`);
+  }
+  if (options.mode === 'hd') {
+    directives.push('Render at HD quality (~1920x1080)');
+  } else if (options.mode === 'preview') {
+    directives.push('Render at preview quality (~512x288)');
+  }
+  if (directives.length > 0) {
+    lines.push('', directives.join(' | '));
+  }
+  return lines.join('\n');
 }
 
 function truncate(value, maxLength) {
