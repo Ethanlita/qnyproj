@@ -11,6 +11,7 @@ const { DynamoDBClient } = require('@aws-sdk/client-dynamodb');
 const { DynamoDBDocumentClient, GetCommand, PutCommand, UpdateCommand, BatchWriteCommand } = require('@aws-sdk/lib-dynamodb');
 const { S3Client, GetObjectCommand } = require('@aws-sdk/client-s3');
 const { SecretsManagerClient, GetSecretValueCommand } = require('@aws-sdk/client-secrets-manager');
+const { SQSClient, SendMessageBatchCommand } = require('@aws-sdk/client-sqs');
 const Ajv = require('ajv');
 const { v4: uuid } = require('uuid');
 
@@ -26,6 +27,7 @@ const docClient = DynamoDBDocumentClient.from(dynamodbClient, {
 });
 const s3Client = new S3Client({});
 const secretsClient = new SecretsManagerClient({});
+const sqsClient = new SQSClient({});
 
 // AJV validator - 宽容模式，只验证结构，不验证类型严格性
 const ajv = new Ajv({ 
@@ -42,6 +44,7 @@ const ASSETS_BUCKET = process.env.ASSETS_BUCKET;
 const QWEN_SECRET_ARN = process.env.QWEN_SECRET_ARN;
 const BIBLES_TABLE_NAME = process.env.BIBLES_TABLE_NAME;
 const BIBLES_BUCKET = process.env.BIBLES_BUCKET || ASSETS_BUCKET;
+const REFERENCE_QUEUE_URL = process.env.REFERENCE_QUEUE_URL || process.env.REFERENCE_IMAGE_QUEUE_URL;
 
 // Load schemas
 const storyboardSchema = require('../../schemas/storyboard.json');
@@ -679,6 +682,8 @@ exports.handler = async (event) => {
         `storage: ${storageLocation ? 'S3' : 'DynamoDB'})`
       );
       
+      await enqueueReferenceImageJobs(bibleResult, novelId, userId);
+      
       // 6. Write to DynamoDB
       await updateJob(jobId, 'running', { percentage: 90, stage: 'writing_database' });
       const { storyboardId } = await writeStoryboardToDynamoDB(novelId, userId, storyboard);
@@ -713,5 +718,67 @@ exports.handler = async (event) => {
     batchItemFailures
   };
 };
+
+module.exports.lambdaHandler = exports.handler;
+
+async function enqueueReferenceImageJobs(bibleResult, novelId, userId) {
+  if (!REFERENCE_QUEUE_URL) {
+    console.log('[AnalyzeWorker] Reference queue not configured, skip auto reference jobs');
+    return;
+  }
+  if (!bibleResult) {
+    return;
+  }
+
+  const messages = [];
+  const now = new Date().toISOString();
+  const characters = (bibleResult.characters || []).filter((char) => !hasReferenceImage(char));
+  const scenes = (bibleResult.scenes || []).filter((scene) => !hasReferenceImage(scene));
+
+  const MAX_PER_TYPE = 5;
+  characters.slice(0, MAX_PER_TYPE).forEach((character) => {
+    messages.push({
+      type: 'character',
+      novelId,
+      userId,
+      identifier: character.name,
+      character,
+      requestedAt: now
+    });
+  });
+  scenes.slice(0, MAX_PER_TYPE).forEach((scene) => {
+    messages.push({
+      type: 'scene',
+      novelId,
+      userId,
+      identifier: scene.id,
+      scene,
+      requestedAt: now
+    });
+  });
+
+  if (messages.length === 0) {
+    console.log('[AnalyzeWorker] All bible entries already have reference images, skip auto generation');
+    return;
+  }
+
+  for (let i = 0; i < messages.length; i += 10) {
+    const batch = messages.slice(i, i + 10);
+    await sqsClient.send(new SendMessageBatchCommand({
+      QueueUrl: REFERENCE_QUEUE_URL,
+      Entries: batch.map((message, index) => ({
+        Id: `${Date.now()}-${i + index}`,
+        MessageBody: JSON.stringify(message)
+      }))
+    }));
+  }
+}
+
+function hasReferenceImage(entry) {
+  if (!entry || !Array.isArray(entry.referenceImages)) {
+    return false;
+  }
+  return entry.referenceImages.some((image) => image && (image.s3Key || image.url));
+}
 
 module.exports.lambdaHandler = exports.handler;

@@ -608,6 +608,143 @@ Resources:
                 uri:
                   Fn::Sub: arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${BibleFunction.Arn}/invocations
                 payloadFormatVersion: '2.0'
+          /novels/{id}/bible/characters/{characterName}:
+            patch:
+              summary: 更新角色圣经条目
+              tags:
+                - Bible
+              security:
+                - CognitoAuthorizer: []
+              parameters:
+                - name: id
+                  in: path
+                  required: true
+                  schema:
+                    type: string
+                - name: characterName
+                  in: path
+                  required: true
+                  schema:
+                    type: string
+                    description: 角色名称（URL 编码）
+              requestBody:
+                required: true
+                content:
+                  application/json:
+                    schema:
+                      $ref: '#/components/schemas/UpdateBibleCharacterRequest'
+              responses:
+                '200':
+                  description: 更新后的角色条目
+                  content:
+                    application/json:
+                      schema:
+                        $ref: '#/components/schemas/BibleCharacter'
+                '400':
+                  description: 请求参数错误
+                  content:
+                    application/json:
+                      schema:
+                        $ref: '#/components/schemas/Error'
+                '404':
+                  description: 未找到对应圣经或角色
+                  content:
+                    application/json:
+                      schema:
+                        $ref: '#/components/schemas/Error'
+              x-amazon-apigateway-integration:
+                type: aws_proxy
+                httpMethod: POST
+                uri:
+                  Fn::Sub: arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${BibleFunction.Arn}/invocations
+                payloadFormatVersion: '2.0'
+          /novels/{id}/bible/scenes/{sceneId}:
+            patch:
+              summary: 更新场景圣经条目
+              tags:
+                - Bible
+              security:
+                - CognitoAuthorizer: []
+              parameters:
+                - name: id
+                  in: path
+                  required: true
+                  schema:
+                    type: string
+                - name: sceneId
+                  in: path
+                  required: true
+                  schema:
+                    type: string
+              requestBody:
+                required: true
+                content:
+                  application/json:
+                    schema:
+                      $ref: '#/components/schemas/UpdateBibleSceneRequest'
+              responses:
+                '200':
+                  description: 更新后的场景条目
+                  content:
+                    application/json:
+                      schema:
+                        $ref: '#/components/schemas/BibleScene'
+                '400':
+                  description: 请求参数错误
+                  content:
+                    application/json:
+                      schema:
+                        $ref: '#/components/schemas/Error'
+                '404':
+                  description: 未找到对应圣经或场景
+                  content:
+                    application/json:
+                      schema:
+                        $ref: '#/components/schemas/Error'
+              x-amazon-apigateway-integration:
+                type: aws_proxy
+                httpMethod: POST
+                uri:
+                  Fn::Sub: arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${BibleFunction.Arn}/invocations
+                payloadFormatVersion: '2.0'
+          /novels/{id}/bible/uploads:
+            post:
+              summary: 申请参考图上传地址
+              tags:
+                - Bible
+              security:
+                - CognitoAuthorizer: []
+              parameters:
+                - name: id
+                  in: path
+                  required: true
+                  schema:
+                    type: string
+              requestBody:
+                required: true
+                content:
+                  application/json:
+                    schema:
+                      $ref: '#/components/schemas/BibleUploadRequest'
+              responses:
+                '200':
+                  description: 上传信息
+                  content:
+                    application/json:
+                      schema:
+                        $ref: '#/components/schemas/BibleUploadResponse'
+                '400':
+                  description: 请求参数错误
+                  content:
+                    application/json:
+                      schema:
+                        $ref: '#/components/schemas/Error'
+              x-amazon-apigateway-integration:
+                type: aws_proxy
+                httpMethod: POST
+                uri:
+                  Fn::Sub: arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${BibleFunction.Arn}/invocations
+                payloadFormatVersion: '2.0'
           /characters/{charId}:
             get:
               summary: 获取角色详情 (含所有配置)
@@ -1922,9 +2059,9 @@ Resources:
                   $ref: '#/components/schemas/BibleFirstAppearance'
                 referenceImages:
                   type: array
+                  description: 角色参考图列表
                   items:
-                    type: string
-                    format: uri
+                    $ref: '#/components/schemas/BibleReferenceImage'
             BibleCharacterAppearance:
               type: object
               properties:
@@ -2062,9 +2199,9 @@ Resources:
                   $ref: '#/components/schemas/BibleFirstAppearance'
                 referenceImages:
                   type: array
+                  description: 场景参考图列表
                   items:
-                    type: string
-                    format: uri
+                    $ref: '#/components/schemas/BibleReferenceImage'
             BibleMetadata:
               type: object
               required:
@@ -2091,6 +2228,10 @@ Resources:
                   minimum: 0
                 storageLocation:
                   type: string
+                updatedBy:
+                  type: string
+                  nullable: true
+                  description: 最近一次修改圣经的用户（system 表示自动任务）
             BibleHistoryEntry:
               type: object
               required:
@@ -2114,6 +2255,113 @@ Resources:
                   minimum: 0
                 storageLocation:
                   type: string
+            BibleReferenceImage:
+              type: object
+              required:
+                - id
+                - uploadedAt
+              properties:
+                id:
+                  type: string
+                  description: 参考图条目 ID
+                s3Key:
+                  type: string
+                  description: 参考图在 S3 中的键（系统生成）
+                url:
+                  type: string
+                  format: uri
+                  description: 用于前端展示的临时访问链接
+                label:
+                  type: string
+                  description: 参考图标题或备注
+                source:
+                  type: string
+                  enum:
+                    - user
+                    - auto
+                    - external
+                  description: 图片来源
+                uploadedAt:
+                  type: string
+                  format: date-time
+                uploadedBy:
+                  type: string
+                  nullable: true
+                  description: 上传者（自动生成会写入 system）
+            UpdateBibleCharacterRequest:
+              type: object
+              properties:
+                role:
+                  type: string
+                appearance:
+                  type: object
+                personality:
+                  type: array
+                  items:
+                    type: string
+                referenceImages:
+                  type: array
+                  description: 覆盖后的参考图列表
+                  items:
+                    $ref: '#/components/schemas/BibleReferenceImage'
+            UpdateBibleSceneRequest:
+              type: object
+              properties:
+                name:
+                  type: string
+                description:
+                  type: string
+                visualCharacteristics:
+                  type: object
+                spatialLayout:
+                  type: object
+                timeVariations:
+                  type: array
+                weatherVariations:
+                  type: array
+                referenceImages:
+                  type: array
+                  description: 覆盖后的参考图列表
+                  items:
+                    $ref: '#/components/schemas/BibleReferenceImage'
+            BibleUploadRequest:
+              type: object
+              required:
+                - filename
+                - contentType
+                - scope
+                - target
+              properties:
+                filename:
+                  type: string
+                contentType:
+                  type: string
+                scope:
+                  type: string
+                  enum:
+                    - character
+                    - scene
+                target:
+                  type: string
+                  description: 角色名称或场景 ID
+            BibleUploadResponse:
+              type: object
+              required:
+                - uploadUrl
+                - fileKey
+                - expiresAt
+              properties:
+                uploadUrl:
+                  type: string
+                  format: uri
+                fileKey:
+                  type: string
+                expiresAt:
+                  type: string
+                  format: date-time
+                previewUrl:
+                  type: string
+                  format: uri
     securitySchemes:
       CognitoAuthorizer:
         type: openIdConnect

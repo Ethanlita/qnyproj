@@ -7,15 +7,18 @@ const {
   PutCommand
 } = require('@aws-sdk/lib-dynamodb');
 const { EventBridgeClient, PutEventsCommand } = require('@aws-sdk/client-eventbridge');
+const { S3Client } = require('@aws-sdk/client-s3');
 const { unmarshall } = require('@aws-sdk/util-dynamodb');
 const { uploadImage } = require('../../lib/s3-utils');
 const { s3ImagesToBase64 } = require('../../lib/s3-image-utils');
 const { buildPanelPrompt } = require('../../lib/prompt-builder');
 const ImagenAdapter = require('../../lib/imagen-adapter');
 const { getGeminiConfig } = require('../../lib/ai-secrets');
+const BibleManager = require('../../lib/bible-manager');
 
 const dynamoClient = new DynamoDBClient({});
 const docClient = DynamoDBDocumentClient.from(dynamoClient);
+const s3Client = new S3Client({});
 const eventBridgeClient = new EventBridgeClient({});
 
 const TABLE_NAME = process.env.TABLE_NAME;
@@ -26,6 +29,20 @@ const MAX_ATTEMPTS = 3;
 
 let imagenAdapterPromise = null;
 const configCache = new Map(); // key => config
+const bibleCache = new Map(); // key => bible snapshot
+let bibleManagerInstance;
+
+function getBibleManager() {
+  if (!bibleManagerInstance) {
+    const tableName = process.env.BIBLES_TABLE_NAME;
+    const bucket = process.env.BIBLES_BUCKET || process.env.ASSETS_BUCKET;
+    if (!tableName || !bucket) {
+      throw new Error('Bibles table or bucket not configured');
+    }
+    bibleManagerInstance = new BibleManager(docClient, s3Client, tableName, bucket);
+  }
+  return bibleManagerInstance;
+}
 
 exports.handler = async (event) => {
   if (!TABLE_NAME) {
@@ -102,8 +119,11 @@ async function processTask(task) {
     return;
   }
 
-  const characterRefs = await buildCharacterReferences(panel.characters || []);
-  const prompt = buildPanelPrompt(panel, characterRefs, { mode: task.mode });
+  const bibleContext = await loadBibleContext(task.novelId, task.bibleVersion);
+  const workingPanel = bibleContext ? enrichPanelWithBible(panel, bibleContext) : panel;
+
+  const characterRefs = await buildCharacterReferences(workingPanel.characters || [], bibleContext);
+  const prompt = buildPanelPrompt(workingPanel, characterRefs.byId, { mode: task.mode });
   const adapter = await getImagenAdapter();
 
   try {
@@ -157,30 +177,59 @@ async function loadPanel(storyboardId, panelKey) {
   return result.Item || null;
 }
 
-async function buildCharacterReferences(characters) {
-  const refs = {};
+async function buildCharacterReferences(characters = [], bibleContext = null) {
+  const entries = [];
+  const bucket = process.env.ASSETS_BUCKET;
+  const byId = {};
+  const byName = {};
 
   for (const char of characters) {
+    const entry = {
+      charId: char.charId || null,
+      portraitsS3: [],
+      referenceImagesS3: [],
+      bibleReferenceImages: []
+    };
+
     const charId = char.charId;
     const configId = char.configId;
-    if (!charId) continue;
-
-    const cacheKey = `${charId}:${configId || 'default'}`;
-    if (!configCache.has(cacheKey)) {
-      const config = await loadCharacterConfiguration(charId, configId);
-      configCache.set(cacheKey, config);
+    if (charId) {
+      const cacheKey = `${charId}:${configId || 'default'}`;
+      if (!configCache.has(cacheKey)) {
+        const config = await loadCharacterConfiguration(charId, configId);
+        configCache.set(cacheKey, config);
+      }
+      const config = configCache.get(cacheKey);
+      if (config) {
+        entry.portraitsS3 = (config.generatedPortraitsS3 || []).map((item) => item.s3Key);
+        entry.referenceImagesS3 = (config.referenceImagesS3 || []).map((item) => item.s3Key);
+      }
     }
 
-    const config = configCache.get(cacheKey);
-    if (!config) continue;
+    const nameKey = char.name ? char.name.toLowerCase() : null;
+    if (bibleContext && nameKey && bibleContext.charactersByName.has(nameKey)) {
+      const bibleEntry = bibleContext.charactersByName.get(nameKey);
+      entry.bibleReferenceImages = (bibleEntry.referenceImages || [])
+        .map((image) => (image && image.s3Key ? `s3://${process.env.ASSETS_BUCKET}/${image.s3Key}` : null))
+        .filter(Boolean);
+    }
 
-    refs[charId] = {
-      portraitsS3: (config.generatedPortraitsS3 || []).map((item) => item.s3Key),
-      referenceImagesS3: (config.referenceImagesS3 || []).map((item) => item.s3Key)
-    };
+    if (entry.portraitsS3.length === 0 && entry.referenceImagesS3.length === 0 && entry.bibleReferenceImages.length === 0) {
+      if (!charId && !nameKey) {
+        continue;
+      }
+    }
+
+    if (charId) {
+      byId[charId] = entry;
+    }
+    if (nameKey) {
+      byName[nameKey] = entry;
+    }
+    entries.push(entry);
   }
 
-  return refs;
+  return { entries, byId, byName };
 }
 
 async function loadCharacterConfiguration(charId, configId) {
@@ -485,4 +534,3 @@ async function getImagenAdapter() {
   }
   return imagenAdapterPromise;
 }
-

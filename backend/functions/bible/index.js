@@ -12,6 +12,22 @@ const dynamodbClient = new DynamoDBClient({});
 const docClient = DynamoDBDocumentClient.from(dynamodbClient);
 const s3Client = new S3Client({});
 
+const CHARACTER_RESOURCE_PATHS = new Set([
+  '/novels/{id}/bible/characters/{characterName}',
+  '/novels/{novelId}/bible/characters/{characterName}'
+]);
+const SCENE_RESOURCE_PATHS = new Set([
+  '/novels/{id}/bible/scenes/{sceneId}',
+  '/novels/{novelId}/bible/scenes/{sceneId}'
+]);
+const UPLOAD_RESOURCE_PATHS = new Set([
+  '/novels/{id}/bible/uploads',
+  '/novels/{novelId}/bible/uploads'
+]);
+
+const ALLOWED_CONTENT_TYPES = ['image/png', 'image/jpeg', 'image/webp'];
+const UPLOAD_URL_TTL_SECONDS = 900;
+
 function resolveBucket() {
   const bucket = process.env.BIBLES_BUCKET || process.env.ASSETS_BUCKET;
   if (!bucket) {
@@ -50,6 +66,28 @@ function parseLimitParam(query) {
   return Math.min(parsed, 100);
 }
 
+function parseJsonBody(body) {
+  if (!body) {
+    return {};
+  }
+  try {
+    return JSON.parse(body);
+  } catch (error) {
+    throw new Error('Invalid JSON body');
+  }
+}
+
+function sanitizeFilename(name) {
+  return name.replace(/[^a-zA-Z0-9._-]/g, '_');
+}
+
+function slugifyTarget(value) {
+  return encodeURIComponent(value)
+    .replace(/%/g, '')
+    .replace(/\s+/g, '_')
+    .toLowerCase();
+}
+
 exports.handler = async (event) => {
   try {
     const method = event.httpMethod || event.requestContext?.http?.method || 'GET';
@@ -81,6 +119,128 @@ exports.handler = async (event) => {
     const isBiblePath = resource === '/novels/{novelId}/bible' || resource === '/novels/{id}/bible';
     const isHistoryPath = resource === '/novels/{novelId}/bible/history' || resource === '/novels/{id}/bible/history';
 
+    if (method === 'PATCH' && CHARACTER_RESOURCE_PATHS.has(resource)) {
+      const userId = getUserId(event);
+      if (!userId) {
+        return errorResponse(401, 'Unauthorized');
+      }
+
+      const nameParam = event.pathParameters?.characterName;
+      if (!nameParam) {
+        return errorResponse(400, 'Missing characterName path parameter');
+      }
+
+      let payload;
+      try {
+        payload = parseJsonBody(event.body);
+      } catch (err) {
+        return errorResponse(400, err.message);
+      }
+
+      const decodedName = decodeURIComponent(nameParam);
+      try {
+        const updated = await manager.updateCharacter(novelId, decodedName, payload, { updatedBy: userId });
+        const lookup = decodedName.toLowerCase();
+        const character = updated.characters.find(
+          (item) => item && item.name?.toLowerCase() === lookup
+        );
+        if (!character) {
+          return errorResponse(404, `Character ${decodedName} not found`);
+        }
+        const [decorated] = await attachReferenceImageUrls([character]);
+        return successResponse(decorated || character);
+      } catch (error) {
+        if (error.code === 'CHARACTER_NOT_FOUND' || error.code === 'BIBLE_NOT_FOUND') {
+          return errorResponse(404, error.message);
+        }
+        throw error;
+      }
+    }
+
+    if (method === 'PATCH' && SCENE_RESOURCE_PATHS.has(resource)) {
+      const userId = getUserId(event);
+      if (!userId) {
+        return errorResponse(401, 'Unauthorized');
+      }
+
+      const sceneId = event.pathParameters?.sceneId;
+      if (!sceneId) {
+        return errorResponse(400, 'Missing sceneId path parameter');
+      }
+
+      let payload;
+      try {
+        payload = parseJsonBody(event.body);
+      } catch (err) {
+        return errorResponse(400, err.message);
+      }
+
+      try {
+        const updated = await manager.updateScene(novelId, sceneId, payload, { updatedBy: userId });
+        const scene = updated.scenes.find((item) => item && item.id === sceneId);
+        if (!scene) {
+          return errorResponse(404, `Scene ${sceneId} not found`);
+        }
+        const [decorated] = await attachReferenceImageUrls([scene]);
+        return successResponse(decorated || scene);
+      } catch (error) {
+        if (error.code === 'SCENE_NOT_FOUND' || error.code === 'BIBLE_NOT_FOUND') {
+          return errorResponse(404, error.message);
+        }
+        throw error;
+      }
+    }
+
+    if (method === 'POST' && UPLOAD_RESOURCE_PATHS.has(resource)) {
+      const userId = getUserId(event);
+      if (!userId) {
+        return errorResponse(401, 'Unauthorized');
+      }
+
+      let payload;
+      try {
+        payload = parseJsonBody(event.body);
+      } catch (err) {
+        return errorResponse(400, err.message);
+      }
+
+      const { filename, contentType, scope, target } = payload || {};
+      if (!filename || !contentType || !scope || !target) {
+        return errorResponse(400, 'filename, contentType, scope and target are required');
+      }
+      if (!ALLOWED_CONTENT_TYPES.includes(contentType)) {
+        return errorResponse(400, `Unsupported content type ${contentType}`);
+      }
+
+      const bucket = resolveBucket();
+      const safeName = sanitizeFilename(filename);
+      const targetSlug = slugifyTarget(target);
+      const prefix = scope === 'scene' ? 'scenes' : 'characters';
+      const key = `bibles/${novelId}/${prefix}/${targetSlug}/${Date.now()}-${safeName}`;
+
+      const command = new PutObjectCommand({
+        Bucket: bucket,
+        Key: key,
+        ContentType: contentType,
+        Metadata: {
+          'novel-id': novelId,
+          scope,
+          target,
+          'uploaded-by': userId
+        }
+      });
+
+      const uploadUrl = await getSignedUrl(s3Client, command, { expiresIn: UPLOAD_URL_TTL_SECONDS });
+      const previewUrl = await getPresignedUrl(key, UPLOAD_URL_TTL_SECONDS);
+
+      return successResponse({
+        uploadUrl,
+        fileKey: key,
+        expiresAt: new Date(Date.now() + UPLOAD_URL_TTL_SECONDS * 1000).toISOString(),
+        previewUrl
+      });
+    }
+
     if (method === 'GET' && isBiblePath) {
       let versionOptions = {};
       try {
@@ -100,13 +260,8 @@ exports.handler = async (event) => {
         return errorResponse(404, 'Bible not found');
       }
 
-      return successResponse({
-        novelId: bible.novelId,
-        version: bible.version,
-        characters: bible.characters,
-        scenes: bible.scenes,
-        metadata: bible.metadata
-      });
+      const responsePayload = await formatBibleResponse(bible);
+      return successResponse(responsePayload);
     }
 
     if (method === 'GET' && isHistoryPath) {
@@ -130,3 +285,39 @@ exports.handler = async (event) => {
     return errorResponse(500, error.message || 'Internal server error');
   }
 };
+
+async function attachReferenceImageUrls(entries = []) {
+  const result = [];
+  for (const entry of entries || []) {
+    if (!entry) continue;
+    const clone = JSON.parse(JSON.stringify(entry));
+    if (Array.isArray(clone.referenceImages) && clone.referenceImages.length > 0) {
+      const resolved = [];
+      for (const image of clone.referenceImages) {
+        if (!image) continue;
+        const imageClone = { ...image };
+        if (imageClone.s3Key) {
+          try {
+            imageClone.url = await getPresignedUrl(imageClone.s3Key);
+          } catch (error) {
+            console.warn('[BibleFunction] Failed to sign reference image', error);
+          }
+        }
+        resolved.push(imageClone);
+      }
+      clone.referenceImages = resolved;
+    }
+    result.push(clone);
+  }
+  return result;
+}
+
+async function formatBibleResponse(bible) {
+  return {
+    novelId: bible.novelId,
+    version: bible.version,
+    metadata: bible.metadata,
+    characters: await attachReferenceImageUrls(bible.characters),
+    scenes: await attachReferenceImageUrls(bible.scenes)
+  };
+}

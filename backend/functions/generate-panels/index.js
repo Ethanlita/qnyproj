@@ -6,12 +6,28 @@ const {
   BatchWriteCommand,
   UpdateCommand
 } = require('@aws-sdk/lib-dynamodb');
+const { S3Client } = require('@aws-sdk/client-s3');
 const { successResponse, errorResponse } = require('../../lib/response');
 const { getUserId } = require('../../lib/auth');
 const { v4: uuid } = require('uuid');
+const BibleManager = require('../../lib/bible-manager');
 
 const dynamoClient = new DynamoDBClient({});
 const docClient = DynamoDBDocumentClient.from(dynamoClient);
+let bibleManagerInstance;
+
+function getBibleManager() {
+  if (!bibleManagerInstance) {
+    const tableName = process.env.BIBLES_TABLE_NAME;
+    const bucket = process.env.BIBLES_BUCKET || process.env.ASSETS_BUCKET;
+    if (!tableName || !bucket) {
+      throw new Error('Bibles table or bucket not configured');
+    }
+    bibleManagerInstance = new BibleManager(docClient, s3Client, tableName, bucket);
+  }
+  return bibleManagerInstance;
+}
+const s3Client = new S3Client({});
 
 const TABLE_NAME = process.env.TABLE_NAME;
 const VALID_MODES = new Set(['preview', 'hd']);
@@ -55,6 +71,16 @@ exports.handler = async (event) => {
     }
 
     const panels = await loadPanels(storyboardId);
+
+  let bibleVersion = null;
+  try {
+    const bible = await getBibleManager().getBible(novelId);
+    if (bible.exists) {
+      bibleVersion = bible.version;
+    }
+  } catch (error) {
+    console.warn('[GeneratePanels] Unable to load bible version', error);
+  }
     if (panels.length === 0) {
       return errorResponse(404, `Storyboard ${storyboardId} not found or has no panels`);
     }
@@ -87,6 +113,7 @@ exports.handler = async (event) => {
       storyboardId,
       novelId,
       userId,
+      bibleVersion,
       progress: {
         total: panels.length,
         completed: 0,
@@ -117,6 +144,7 @@ exports.handler = async (event) => {
       storyboardId,
       novelId,
       mode,
+      bibleVersion,
       status: 'pending',
       retryCount: 0,
       createdAt: timestamp,
