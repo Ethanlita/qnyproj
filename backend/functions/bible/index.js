@@ -1,9 +1,12 @@
 const { DynamoDBClient } = require('@aws-sdk/client-dynamodb');
 const { DynamoDBDocumentClient } = require('@aws-sdk/lib-dynamodb');
-const { S3Client } = require('@aws-sdk/client-s3');
+const { S3Client, PutObjectCommand } = require('@aws-sdk/client-s3');
+const { getSignedUrl } = require('@aws-sdk/s3-request-presigner');
 
 const BibleManager = require('../../lib/bible-manager');
 const { successResponse, errorResponse } = require('../../lib/response');
+const { getUserId } = require('../../lib/auth');
+const { getPresignedUrl } = require('../../lib/s3-utils');
 
 const dynamodbClient = new DynamoDBClient({});
 const docClient = DynamoDBDocumentClient.from(dynamodbClient);

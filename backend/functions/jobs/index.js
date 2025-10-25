@@ -170,7 +170,9 @@ async function summarizeTasks(jobId) {
       total: 0,
       completed: 0,
       failed: 0,
-      pending: 0
+      pending: 0,
+      inProgress: 0,
+      retrying: 0  // ⭐ 修复 3: 新增重试中状态
     };
   }
 
@@ -178,6 +180,7 @@ async function summarizeTasks(jobId) {
   let failed = 0;
   let inProgress = 0;
   let pending = 0;
+  let retrying = 0;  // ⭐ 修复 3: 新增重试中计数
 
   for (const task of tasks) {
     switch (task.status) {
@@ -190,6 +193,9 @@ async function summarizeTasks(jobId) {
       case 'in_progress':
         inProgress += 1;
         break;
+      case 'pending_retry':  // ⭐ 修复 3: 处理重试中状态
+        retrying += 1;
+        break;
       default:
         pending += 1;
     }
@@ -200,7 +206,8 @@ async function summarizeTasks(jobId) {
     completed,
     failed,
     inProgress,
-    pending
+    pending,
+    retrying  // ⭐ 修复 3: 返回重试中数量
   };
 }
 

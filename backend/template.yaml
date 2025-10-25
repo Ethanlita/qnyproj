@@ -2493,6 +2493,13 @@ Resources:
             TableName: !Ref ComicDataTable
         - S3CrudPolicy:
             BucketName: !Ref AssetsBucket
+        # ⭐ 修复 1: 添加 S3 对象标签权限（uploadImage 需要）
+        - Statement:
+            - Effect: Allow
+              Action:
+                - s3:PutObjectTagging
+                - s3:GetObjectTagging
+              Resource: !Sub 'arn:aws:s3:::${AssetsBucket}/*'
         - Statement:
             - Effect: Allow
               Action:

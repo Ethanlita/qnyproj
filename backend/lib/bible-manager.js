@@ -10,6 +10,7 @@
 
 const { GetCommand, PutCommand, QueryCommand } = require('@aws-sdk/lib-dynamodb');
 const { PutObjectCommand, GetObjectCommand } = require('@aws-sdk/client-s3');
+const { v4: uuid } = require('uuid');
 
 const DEFAULT_MAX_DYNAMO_ITEM_BYTES = 400 * 1024; // 400 KB
 const DEFAULT_S3_PREFIX = 'bibles';
@@ -44,6 +45,19 @@ function mergeStringArrays(base = [], incoming = []) {
     }
   });
   return Array.from(result);
+}
+
+function normaliseStringList(value) {
+  if (!value) return [];
+  if (Array.isArray(value)) {
+    return value
+      .map(item => (typeof item === 'string' ? item.trim() : item))
+      .filter(Boolean);
+  }
+  if (typeof value === 'string' && value.trim()) {
+    return [value.trim()];
+  }
+  return [];
 }
 
 function mergeObjectPreserve(base = {}, incoming = {}) {
@@ -143,6 +157,171 @@ function parseS3Uri(uri) {
     bucket: withoutScheme.slice(0, slashIndex),
     key: withoutScheme.slice(slashIndex + 1)
   };
+}
+
+function s3UriToKey(uri) {
+  try {
+    const { key } = parseS3Uri(uri);
+    return key;
+  } catch (error) {
+    return null;
+  }
+}
+
+function normaliseReferenceImageEntry(entry, defaults = {}) {
+  if (!entry) {
+    return null;
+  }
+
+  const now = defaults.uploadedAt || new Date().toISOString();
+
+  if (typeof entry === 'string') {
+    const trimmed = entry.trim();
+    if (!trimmed) {
+      return null;
+    }
+    if (trimmed.startsWith('s3://')) {
+      return {
+        id: uuid(),
+        s3Key: s3UriToKey(trimmed),
+        source: defaults.source || 'auto',
+        label: defaults.label || null,
+        uploadedAt: now,
+        uploadedBy: defaults.uploadedBy || null
+      };
+    }
+    return {
+      id: uuid(),
+      url: trimmed,
+      source: defaults.source || 'external',
+      label: defaults.label || null,
+      uploadedAt: now,
+      uploadedBy: defaults.uploadedBy || null
+    };
+  }
+
+  if (typeof entry === 'object') {
+    const clone = cloneJson(entry);
+    clone.id = clone.id || uuid();
+    clone.source = clone.source || defaults.source || 'user';
+    clone.uploadedAt = clone.uploadedAt || now;
+    clone.uploadedBy = clone.uploadedBy || defaults.uploadedBy || null;
+
+    if (!clone.s3Key && typeof clone.url === 'string' && clone.url.startsWith('s3://')) {
+      clone.s3Key = s3UriToKey(clone.url);
+      delete clone.url;
+    }
+
+    if (!clone.s3Key && !clone.url) {
+      return null;
+    }
+
+    return clone;
+  }
+
+  return null;
+}
+
+function normaliseReferenceImages(list = [], defaults = {}) {
+  return (list || [])
+    .map((entry) => normaliseReferenceImageEntry(entry, defaults))
+    .filter(Boolean);
+}
+
+function mergeReferenceImages(base = [], incoming = [], defaults = {}) {
+  const result = [];
+  const index = new Map();
+
+  for (const entry of normaliseReferenceImages(base)) {
+    const key = entry.s3Key ? `s3:${entry.s3Key}` : entry.url ? `url:${entry.url}` : entry.id;
+    const clone = cloneJson(entry);
+    index.set(key, clone);
+    result.push(clone);
+  }
+
+  for (const entry of normaliseReferenceImages(incoming, defaults)) {
+    const key = entry.s3Key ? `s3:${entry.s3Key}` : entry.url ? `url:${entry.url}` : entry.id;
+    if (index.has(key)) {
+      const target = index.get(key);
+      Object.assign(target, entry);
+    } else {
+      const clone = cloneJson(entry);
+      index.set(key, clone);
+      result.push(clone);
+    }
+  }
+
+  return result;
+}
+
+function applyCharacterPatch(character, patch = {}, options = {}) {
+  const next = cloneJson(character) || {};
+
+  if (Object.prototype.hasOwnProperty.call(patch, 'role') && patch.role) {
+    next.role = patch.role;
+  }
+
+  if (Object.prototype.hasOwnProperty.call(patch, 'appearance')) {
+    next.appearance = patch.appearance ? cloneJson(patch.appearance) : {};
+  }
+
+  if (Object.prototype.hasOwnProperty.call(patch, 'personality')) {
+    next.personality = normaliseStringList(patch.personality);
+  }
+
+  if (Array.isArray(patch.referenceImages)) {
+    next.referenceImages = normaliseReferenceImages(patch.referenceImages, {
+      uploadedBy: options.updatedBy || null
+    });
+  }
+
+  const timestamp = new Date().toISOString();
+  next.updatedAt = timestamp;
+  next.updatedBy = options.updatedBy || 'system';
+
+  return next;
+}
+
+function applyScenePatch(scene, patch = {}, options = {}) {
+  const next = cloneJson(scene) || {};
+
+  if (Object.prototype.hasOwnProperty.call(patch, 'name') && patch.name) {
+    next.name = patch.name;
+  }
+  if (Object.prototype.hasOwnProperty.call(patch, 'description')) {
+    next.description = patch.description;
+  }
+  if (Object.prototype.hasOwnProperty.call(patch, 'visualCharacteristics')) {
+    next.visualCharacteristics = patch.visualCharacteristics
+      ? cloneJson(patch.visualCharacteristics)
+      : {};
+  }
+  if (Object.prototype.hasOwnProperty.call(patch, 'spatialLayout')) {
+    next.spatialLayout = patch.spatialLayout ? cloneJson(patch.spatialLayout) : {};
+  }
+  if (Object.prototype.hasOwnProperty.call(patch, 'timeVariations')) {
+    next.timeVariations = patch.timeVariations ? cloneJson(patch.timeVariations) : [];
+  }
+  if (Object.prototype.hasOwnProperty.call(patch, 'weatherVariations')) {
+    next.weatherVariations = patch.weatherVariations ? cloneJson(patch.weatherVariations) : [];
+  }
+  if (Array.isArray(patch.referenceImages)) {
+    next.referenceImages = normaliseReferenceImages(patch.referenceImages, {
+      uploadedBy: options.updatedBy || null
+    });
+  }
+
+  const timestamp = new Date().toISOString();
+  next.updatedAt = timestamp;
+  next.updatedBy = options.updatedBy || 'system';
+
+  return next;
+}
+
+function createNotFoundError(code, message) {
+  const error = new Error(message);
+  error.code = code;
+  return error;
 }
 
 class BibleManager {
@@ -281,37 +460,234 @@ class BibleManager {
    * @param {number} chapterNumber
    * @returns {Promise<{version: number, metadata: object, storageLocation: string | null}>}
    */
-  async saveBible(novelId, characters = [], scenes = [], chapterNumber) {
+  async saveBible(novelId, characters = [], scenes = [], chapterNumber, options = {}) {
     if (!novelId) {
       throw new Error('novelId is required');
     }
 
     const existing = await this.getBible(novelId);
-    const mergedCharacters = this.mergeCharacters(existing.characters, characters, chapterNumber);
-    const mergedScenes = this.mergeScenes(existing.scenes, scenes, chapterNumber);
+    const mergedCharacters = this.mergeCharacters(
+      existing.characters,
+      characters,
+      chapterNumber,
+      { updatedBy: options.updatedBy || 'system' }
+    );
+    const mergedScenes = this.mergeScenes(
+      existing.scenes,
+      scenes,
+      chapterNumber,
+      { updatedBy: options.updatedBy || 'system' }
+    );
+
+    return this.persistBible(
+      novelId,
+      existing,
+      mergedCharacters,
+      mergedScenes,
+      { chapterNumber, updatedBy: options.updatedBy || 'system' }
+    );
+  }
+
+  async saveBibleSnapshot(novelId, updates = {}, options = {}) {
+    if (!novelId) {
+      throw new Error('novelId is required');
+    }
+
+    const existing = await this.getBible(novelId);
+    const characters = updates.characters
+      ? cloneJson(updates.characters)
+      : cloneJson(existing.characters);
+    const scenes = updates.scenes
+      ? cloneJson(updates.scenes)
+      : cloneJson(existing.scenes);
+
+    return this.persistBible(
+      novelId,
+      existing,
+      characters,
+      scenes,
+      options
+    );
+  }
+
+  async updateCharacter(novelId, characterName, patch = {}, options = {}) {
+    if (!novelId) {
+      throw new Error('novelId is required');
+    }
+    if (!characterName) {
+      throw new Error('characterName is required');
+    }
+
+    const existing = await this.getBible(novelId);
+    if (!existing.exists) {
+      throw createNotFoundError('BIBLE_NOT_FOUND', 'Bible not found');
+    }
+
+    const targetKey = characterName.toLowerCase();
+    const characters = cloneJson(existing.characters);
+    const targetIndex = characters.findIndex(
+      (item) =>
+        item &&
+        (item.name?.toLowerCase() === targetKey || item.id === characterName)
+    );
+
+    if (targetIndex === -1) {
+      throw createNotFoundError('CHARACTER_NOT_FOUND', `Character ${characterName} not found`);
+    }
+
+    characters[targetIndex] = applyCharacterPatch(
+      characters[targetIndex],
+      patch,
+      { updatedBy: options.updatedBy || 'system' }
+    );
+
+    return this.persistBible(
+      novelId,
+      existing,
+      characters,
+      cloneJson(existing.scenes),
+      { updatedBy: options.updatedBy || 'system' }
+    );
+  }
+
+  async updateScene(novelId, sceneId, patch = {}, options = {}) {
+    if (!novelId) {
+      throw new Error('novelId is required');
+    }
+    if (!sceneId) {
+      throw new Error('sceneId is required');
+    }
+
+    const existing = await this.getBible(novelId);
+    if (!existing.exists) {
+      throw createNotFoundError('BIBLE_NOT_FOUND', 'Bible not found');
+    }
+
+    const scenes = cloneJson(existing.scenes);
+    const targetIndex = scenes.findIndex((scene) => scene && scene.id === sceneId);
+    if (targetIndex === -1) {
+      throw createNotFoundError('SCENE_NOT_FOUND', `Scene ${sceneId} not found`);
+    }
+
+    scenes[targetIndex] = applyScenePatch(
+      scenes[targetIndex],
+      patch,
+      { updatedBy: options.updatedBy || 'system' }
+    );
+
+    return this.persistBible(
+      novelId,
+      existing,
+      cloneJson(existing.characters),
+      scenes,
+      { updatedBy: options.updatedBy || 'system' }
+    );
+  }
+
+  async appendReferenceImage(novelId, entryType, identifier, image, options = {}) {
+    if (!novelId) {
+      throw new Error('novelId is required');
+    }
+    if (!entryType || !identifier) {
+      throw new Error('entryType and identifier are required');
+    }
+
+    const existing = await this.getBible(novelId);
+    if (!existing.exists) {
+      throw createNotFoundError('BIBLE_NOT_FOUND', 'Bible not found');
+    }
+
+    const normalizedImage = normaliseReferenceImageEntry(image, {
+      uploadedBy: options.updatedBy || 'system',
+      source: image?.source || 'auto'
+    });
+
+    if (!normalizedImage) {
+      throw new Error('Invalid reference image payload');
+    }
+
+    if (entryType === 'character') {
+      const characters = cloneJson(existing.characters);
+      const targetKey = identifier.toLowerCase();
+      const index = characters.findIndex(
+        (item) =>
+          item && (item.name?.toLowerCase() === targetKey || item.id === identifier)
+      );
+      if (index === -1) {
+        throw createNotFoundError('CHARACTER_NOT_FOUND', `Character ${identifier} not found`);
+      }
+      const target = characters[index];
+      target.referenceImages = mergeReferenceImages(
+        target.referenceImages || [],
+        [normalizedImage],
+        { uploadedBy: options.updatedBy || 'system' }
+      );
+      target.updatedAt = new Date().toISOString();
+      target.updatedBy = options.updatedBy || 'system';
+
+      return this.persistBible(
+        novelId,
+        existing,
+        characters,
+        cloneJson(existing.scenes),
+        { updatedBy: options.updatedBy || 'system' }
+      );
+    }
+
+    if (entryType === 'scene') {
+      const scenes = cloneJson(existing.scenes);
+      const index = scenes.findIndex((scene) => scene && scene.id === identifier);
+      if (index === -1) {
+        throw createNotFoundError('SCENE_NOT_FOUND', `Scene ${identifier} not found`);
+      }
+      const target = scenes[index];
+      target.referenceImages = mergeReferenceImages(
+        target.referenceImages || [],
+        [normalizedImage],
+        { uploadedBy: options.updatedBy || 'system' }
+      );
+      target.updatedAt = new Date().toISOString();
+      target.updatedBy = options.updatedBy || 'system';
+
+      return this.persistBible(
+        novelId,
+        existing,
+        cloneJson(existing.characters),
+        scenes,
+        { updatedBy: options.updatedBy || 'system' }
+      );
+    }
+
+    throw new Error(`Unsupported entryType: ${entryType}`);
+  }
+
+  async persistBible(novelId, existing, characters, scenes, options = {}) {
     const nextVersion = (existing.exists ? existing.version : 0) + 1;
     const now = new Date().toISOString();
     const createdAt = existing.metadata?.createdAt || now;
-    const lastChapter = Number.isInteger(chapterNumber) ? chapterNumber : (existing.metadata?.lastChapter || 0);
+    const lastChapter = Number.isInteger(options.chapterNumber)
+      ? options.chapterNumber
+      : (existing.metadata?.lastChapter || 0);
 
     const metadata = {
       createdAt,
       updatedAt: now,
       lastChapter,
-      totalCharacters: mergedCharacters.length,
-      totalScenes: mergedScenes.length,
-      storageLocation: null
+      totalCharacters: characters.length,
+      totalScenes: scenes.length,
+      storageLocation: null,
+      updatedBy: options.updatedBy || 'system'
     };
 
     const serialized = JSON.stringify({
       novelId,
       version: nextVersion,
-      characters: mergedCharacters,
-      scenes: mergedScenes
+      characters,
+      scenes
     });
 
-    let dynamoCharacters = mergedCharacters;
-    let dynamoScenes = mergedScenes;
+    let dynamoCharacters = characters;
+    let dynamoScenes = scenes;
 
     if (Buffer.byteLength(serialized, 'utf8') >= this.maxDynamoItemBytes) {
       const s3Key = `${this.s3Prefix}/${novelId}/v${nextVersion}.json`;
@@ -358,8 +734,8 @@ class BibleManager {
       version: nextVersion,
       metadata,
       storageLocation: metadata.storageLocation,
-      characters: mergedCharacters,
-      scenes: mergedScenes
+      characters,
+      scenes
     };
   }
 
@@ -370,7 +746,9 @@ class BibleManager {
    * @param {number} chapterNumber
    * @returns {Array}
    */
-  mergeCharacters(existing = [], newCharacters = [], chapterNumber) {
+  mergeCharacters(existing = [], newCharacters = [], chapterNumber, options = {}) {
+    const updatedBy = options.updatedBy || 'system';
+    const now = new Date().toISOString();
     const map = new Map();
 
     for (const character of existing || []) {
@@ -403,9 +781,15 @@ class BibleManager {
         }
 
         if (candidate.referenceImages) {
-          current.referenceImages = mergeStringArrays(current.referenceImages, candidate.referenceImages);
+          current.referenceImages = mergeReferenceImages(
+            current.referenceImages,
+            candidate.referenceImages,
+            { uploadedBy: updatedBy }
+          );
         }
 
+        current.updatedAt = now;
+        current.updatedBy = updatedBy;
         map.set(key, current);
       } else {
         if (!candidate.firstAppearance) {
@@ -417,6 +801,13 @@ class BibleManager {
         if (candidate.appearance) {
           candidate.appearance = mergeAppearance({}, candidate.appearance);
         }
+        if (candidate.referenceImages) {
+          candidate.referenceImages = normaliseReferenceImages(candidate.referenceImages, { uploadedBy: updatedBy });
+        } else {
+          candidate.referenceImages = [];
+        }
+        candidate.updatedAt = now;
+        candidate.updatedBy = updatedBy;
         map.set(key, candidate);
       }
     }
@@ -431,7 +822,9 @@ class BibleManager {
    * @param {number} chapterNumber
    * @returns {Array}
    */
-  mergeScenes(existing = [], newScenes = [], chapterNumber) {
+  mergeScenes(existing = [], newScenes = [], chapterNumber, options = {}) {
+    const updatedBy = options.updatedBy || 'system';
+    const now = new Date().toISOString();
     const map = new Map();
 
     for (const scene of existing || []) {
@@ -494,14 +887,27 @@ class BibleManager {
           current.firstAppearance = candidate.firstAppearance;
         }
         if (candidate.referenceImages) {
-          current.referenceImages = mergeStringArrays(current.referenceImages, candidate.referenceImages);
+          current.referenceImages = mergeReferenceImages(
+            current.referenceImages,
+            candidate.referenceImages,
+            { uploadedBy: updatedBy }
+          );
         }
 
+        current.updatedAt = now;
+        current.updatedBy = updatedBy;
         map.set(key, current);
       } else {
         if (!candidate.firstAppearance) {
           candidate.firstAppearance = buildFirstAppearance(chapterNumber);
         }
+        if (candidate.referenceImages) {
+          candidate.referenceImages = normaliseReferenceImages(candidate.referenceImages, { uploadedBy: updatedBy });
+        } else {
+          candidate.referenceImages = [];
+        }
+        candidate.updatedAt = now;
+        candidate.updatedBy = updatedBy;
         map.set(key, candidate);
       }
     }

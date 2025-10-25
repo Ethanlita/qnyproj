@@ -314,13 +314,25 @@ async function markTaskFailed(task, reason) {
       const delaySeconds = Math.pow(2, currentRetry) * 10;
       const retryAt = new Date(Date.now() + delaySeconds * 1000);
       
-      // Delete current task record
+      // ⭐ 修复 3: 不删除任务记录，而是更新为 pending_retry 状态
       await docClient.send(
-        new DeleteCommand({
+        new UpdateCommand({
           TableName: TABLE_NAME,
           Key: {
             PK: task.PK,
             SK: task.SK
+          },
+          UpdateExpression: 'SET #status = :status, retryCount = :retryCount, lastError = :lastError, lastAttemptAt = :lastAttemptAt, retryAt = :retryAt, updatedAt = :updatedAt',
+          ExpressionAttributeNames: {
+            '#status': 'status'
+          },
+          ExpressionAttributeValues: {
+            ':status': 'pending_retry',  // 新状态：等待重试
+            ':retryCount': nextRetry,
+            ':lastError': reason,
+            ':lastAttemptAt': timestamp,
+            ':retryAt': retryAt.toISOString(),
+            ':updatedAt': timestamp
           }
         })
       );
@@ -375,7 +387,7 @@ async function markTaskFailed(task, reason) {
         ':failed': 'failed',
         ':updatedAt': timestamp,
         ':error': reason,
-        ':retryCount': updatedRetry
+        ':retryCount': currentRetry  // ⭐ 修复 2: 修正变量名（原为 updatedRetry）
       }
     })
   );
