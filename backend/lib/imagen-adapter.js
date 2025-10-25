@@ -140,13 +140,13 @@ class ImagenAdapter {
     // Call Gemini API (same as generate, but with image input)
     const url = `https://generativelanguage.googleapis.com/v1beta/models/${this.model}:generateContent?key=${this.apiKey}`;
 
-    const config = buildImageConfig({
+    const generationConfig = buildGenerationConfig({
       aspectRatio,
       responseModalities: ['Image']
     });
     const body = { contents };
-    if (config) {
-      body.config = config;
+    if (generationConfig) {
+      body.generationConfig = generationConfig;
     }
 
     const res = await this.fetch(url, {
@@ -319,13 +319,13 @@ class ImagenAdapter {
       });
     }
 
-    const config = buildImageConfig({
+    const generationConfig = buildGenerationConfig({
       aspectRatio,
       responseModalities: ['Image']
     });
     const body = { contents };
-    if (config) {
-      body.config = config;
+    if (generationConfig) {
+      body.generationConfig = generationConfig;
     }
 
     const res = await this.fetch(url, {
@@ -385,12 +385,12 @@ function truncate(value, maxLength) {
   return `${value.slice(0, maxLength)}...`;
 }
 
-function buildImageConfig(options = {}) {
+function buildGenerationConfig(options = {}) {
   const config = {};
   const { responseModalities, aspectRatio } = options;
 
   if (Array.isArray(responseModalities) && responseModalities.length > 0) {
-    config.response_modalities = responseModalities.map((item) => {
+    config.responseModalities = responseModalities.map((item) => {
       if (typeof item !== 'string') {
         return item;
       }
@@ -407,8 +407,8 @@ function buildImageConfig(options = {}) {
 
   const normalizedAspectRatio = normalizeAspectRatio(aspectRatio);
   if (normalizedAspectRatio) {
-    config.image_config = {
-      aspect_ratio: normalizedAspectRatio
+    config.imageConfig = {
+      aspectRatio: normalizedAspectRatio
     };
   }
 
