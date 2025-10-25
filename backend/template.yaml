@@ -2663,6 +2663,7 @@ Resources:
           BIBLES_TABLE_NAME: !Ref BiblesTable
           BIBLES_BUCKET: !Ref AssetsBucket
           ENVIRONMENT: !Ref Environment
+          ASSETS_BUCKET: !Ref AssetsBucket
       Policies:
         - DynamoDBCrudPolicy:
             TableName: !Ref BiblesTable

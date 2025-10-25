@@ -115,12 +115,7 @@ class ImagenAdapter {
           ? { width: 512, height: 288 }
           : null);
 
-    const inlineImagePart = {
-      inline_data: {
-        mime_type: 'image/png',
-        data: base64Image
-      }
-    };
+    const inlineImagePart = buildInlineDataPart(base64Image);
     const decoratedPrompt = buildPromptWithDirectives(prompt, {
       aspectRatio,
       mode,
@@ -165,13 +160,14 @@ class ImagenAdapter {
     const payload = await res.json();
     
     // Extract image from response
-    const part = payload?.candidates?.[0]?.content?.parts?.find(p => p.inline_data);
-    if (!part || !part.inline_data || !part.inline_data.data) {
+    const part = payload?.candidates?.[0]?.content?.parts?.find((p) => extractInlineData(p));
+    const inline = extractInlineData(part);
+    if (!inline || !inline.data) {
       throw new Error('[ImagenAdapter] No image data in edit response');
     }
 
-    const base64 = part.inline_data.data;
-    const mimeType = part.inline_data.mime_type || 'image/png';
+    const base64 = inline.data;
+    const mimeType = inline.mime_type || inline.mimeType || 'image/png';
 
     this.logger?.info?.('[ImagenAdapter] Image editing successful');
 
@@ -296,12 +292,7 @@ class ImagenAdapter {
           
           // Only add if it looks like valid base64
           if (base64Data && base64Data.length > 100 && !base64Data.startsWith('s3://')) {
-            contents[0].parts.push({
-              inline_data: {
-                mime_type: 'image/png',
-                data: base64Data
-              }
-            });
+            contents[0].parts.push(buildInlineDataPart(base64Data));
             this.logger?.info?.(`[ImagenAdapter] Added reference image #${i + 1} (${base64Data.substring(0, 20)}...)`);
           }
         }
@@ -343,15 +334,15 @@ class ImagenAdapter {
 
     const payload = await res.json();
     const candidate = payload?.candidates?.[0];
-    const part = candidate?.content?.parts?.find((p) => p.inline_data);
-    const inline = part?.inline_data;
+    const part = candidate?.content?.parts?.find((p) => extractInlineData(p));
+    const inline = extractInlineData(part);
     if (!inline?.data) {
       return null;
     }
 
     return {
       buffer: Buffer.from(inline.data, 'base64'),
-      mimeType: inline.mime_type || 'image/png',
+      mimeType: inline.mime_type || inline.mimeType || 'image/png',
       safetyAttributes: candidate?.safetyRatings || payload?.safetyInfo,
       requestId: payload?.responseId || payload?.requestId || `gemini-${Date.now()}`
     };
@@ -383,6 +374,29 @@ function truncate(value, maxLength) {
     return value;
   }
   return `${value.slice(0, maxLength)}...`;
+}
+
+function buildInlineDataPart(base64Data, mimeType = 'image/png') {
+  if (!base64Data) {
+    return null;
+  }
+  return {
+    inline_data: {
+      mime_type: mimeType,
+      data: base64Data
+    },
+    inlineData: {
+      mimeType,
+      data: base64Data
+    }
+  };
+}
+
+function extractInlineData(part) {
+  if (!part) {
+    return null;
+  }
+  return part.inline_data || part.inlineData || null;
 }
 
 function buildGenerationConfig(options = {}) {
