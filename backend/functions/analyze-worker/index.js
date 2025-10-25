@@ -638,6 +638,7 @@ exports.handler = async (event) => {
       
       const MAX_SCHEMA_RETRY = 1;
       let storyboard = null;
+      let rawStoryboard = null;
       for (let attempt = 0; attempt <= MAX_SCHEMA_RETRY; attempt++) {
         const stageLabel = attempt === 0 ? 'generating_storyboard' : 'regenerating_storyboard';
         await updateJob(jobId, 'running', {
@@ -645,7 +646,7 @@ exports.handler = async (event) => {
           stage: stageLabel
         });
 
-        storyboard = await qwenAdapter.generateStoryboard({
+        rawStoryboard = await qwenAdapter.generateStoryboard({
           text: novelText,
           jsonSchema: storyboardSchema,
           strictMode: true,
@@ -654,7 +655,7 @@ exports.handler = async (event) => {
           existingScenes: existingBible.scenes || [],
           chapterNumber
         });
-
+        storyboard = cloneStoryboard(rawStoryboard);
         sanitizeReferenceImages(storyboard);
 
         console.log(`[AnalyzeWorker] Storyboard generated (attempt ${attempt + 1})`);
@@ -696,8 +697,8 @@ exports.handler = async (event) => {
       await updateJob(jobId, 'running', { percentage: 88, stage: 'saving_bible' });
       const bibleResult = await bibleManager.saveBible(
         novelId,
-        storyboard.characters || [],
-        storyboard.scenes || [],
+        rawStoryboard.characters || [],
+        rawStoryboard.scenes || [],
         chapterNumber
       );
       const updatedMetadata = bibleResult.metadata || {};
@@ -711,7 +712,7 @@ exports.handler = async (event) => {
         `storage: ${storageLocation ? 'S3' : 'DynamoDB'})`
       );
       
-      await enqueueReferenceImageJobs(bibleResult, novelId, userId);
+      const referenceJobMeta = await enqueueReferenceImageJobs(bibleResult, novelId, userId, jobId);
       
       // 6. Write to DynamoDB
       await updateJob(jobId, 'running', { percentage: 90, stage: 'writing_database' });
@@ -727,7 +728,18 @@ exports.handler = async (event) => {
         chapterNumber,
         panelCount: storyboard.panels.length,
         characterCount: storyboard.characters.length,
-        sceneCount: storyboard.scenes ? storyboard.scenes.length : 0
+        sceneCount: storyboard.scenes ? storyboard.scenes.length : 0,
+        ...(referenceJobMeta
+          ? {
+              referenceJobId: referenceJobMeta.jobId,
+              referenceProgress: {
+                jobId: referenceJobMeta.jobId,
+                total: referenceJobMeta.total,
+                completed: 0,
+                failed: 0
+              }
+            }
+          : {})
       });
       
       console.log(`[AnalyzeWorker] Job ${jobId} completed successfully`);
@@ -753,16 +765,16 @@ exports.handler = async (event) => {
 
 module.exports.lambdaHandler = exports.handler;
 
-async function enqueueReferenceImageJobs(bibleResult, novelId, userId) {
+async function enqueueReferenceImageJobs(bibleResult, novelId, userId, parentJobId) {
   if (!REFERENCE_QUEUE_URL) {
     console.log('[AnalyzeWorker] Reference queue not configured, skip auto reference jobs');
-    return;
+    return null;
   }
   if (!bibleResult) {
-    return;
+    return null;
   }
 
-  const messages = [];
+  let messages = [];
   const now = new Date().toISOString();
   const characters = (bibleResult.characters || []).filter((char) => !hasReferenceImage(char));
   const scenes = (bibleResult.scenes || []).filter((scene) => !hasReferenceImage(scene));
@@ -792,11 +804,48 @@ async function enqueueReferenceImageJobs(bibleResult, novelId, userId) {
 
   if (messages.length === 0) {
     console.log('[AnalyzeWorker] All bible entries already have reference images, skip auto generation');
-    return;
+    return null;
   }
 
+  const referenceJobId = uuid();
+  const timestamp = new Date().toISOString();
+  const timestampNumber = Date.now();
+
+  await docClient.send(
+    new PutCommand({
+      TableName: TABLE_NAME,
+      Item: {
+        PK: `JOB#${referenceJobId}`,
+        SK: `JOB#${referenceJobId}`,
+        id: referenceJobId,
+        type: 'reference_autogen',
+        status: 'queued',
+        novelId,
+        userId,
+        parentJobId,
+        progress: {
+          total: messages.length,
+          completed: 0,
+          failed: 0,
+          percentage: 0
+        },
+        createdAt: timestamp,
+        updatedAt: timestamp,
+        GSI1PK: `USER#${userId}`,
+        GSI1SK: `JOB#${timestampNumber}`,
+        GSI2PK: `NOVEL#${novelId}`,
+        GSI2SK: timestampNumber
+      }
+    })
+  );
+
+  messages = messages.map((message) => ({
+    ...message,
+    referenceJobId
+  }));
+
   console.log(
-    `[AnalyzeWorker] Enqueueing ${characters.length} character and ${Math.min(scenes.length, MAX_SCENE_AUTOGEN)} scene reference jobs`
+    `[AnalyzeWorker] Enqueueing ${messages.length} reference image jobs (jobId=${referenceJobId})`
   );
 
   for (let i = 0; i < messages.length; i += 10) {
@@ -809,6 +858,11 @@ async function enqueueReferenceImageJobs(bibleResult, novelId, userId) {
       }))
     }));
   }
+
+  return {
+    jobId: referenceJobId,
+    total: messages.length
+  };
 }
 
 function hasReferenceImage(entry) {
@@ -844,6 +898,10 @@ function sanitizeReferenceImages(storyboard) {
 
   normalize(storyboard.characters);
   normalize(storyboard.scenes);
+}
+
+function cloneStoryboard(payload) {
+  return JSON.parse(JSON.stringify(payload));
 }
 
 module.exports.lambdaHandler = exports.handler;

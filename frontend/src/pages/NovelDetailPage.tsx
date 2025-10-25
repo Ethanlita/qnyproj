@@ -136,19 +136,42 @@ export function NovelDetailPage() {
   const [sceneDraft, setSceneDraft] = useState<SceneDraft | null>(null);
   const [savingScene, setSavingScene] = useState<string | null>(null);
   const [uploadingScene, setUploadingScene] = useState<string | null>(null);
+  const [referenceJobError, setReferenceJobError] = useState<string | null>(null);
+
+  const {
+    jobState: referenceJobState,
+    start: startReferenceJob,
+    stop: stopReferenceJob
+  } = useJobMonitor({
+    onCompleted: async () => {
+      setReferenceJobError(null);
+      await loadBible();
+    },
+    onFailed: async ({ error: jobError }) => {
+      setReferenceJobError(jobError || '参考图生成失败');
+    }
+  });
 
   const {
     jobState: analyzeJobState,
     start: startAnalyzeJob
   } = useJobMonitor({
-    onCompleted: async () => {
+    onCompleted: async (job) => {
       setAnalysisPending(false);
       await loadNovel();
       await loadBible();
+      const referenceJobId =
+        (job.progress as { referenceJobId?: string } | undefined)?.referenceJobId;
+      if (referenceJobId) {
+        startReferenceJob(referenceJobId);
+      } else {
+        stopReferenceJob();
+      }
     },
     onFailed: async ({ error: jobError }) => {
       setAnalysisPending(false);
       setError(jobError || '分析失败');
+      stopReferenceJob();
     }
   });
 
@@ -295,6 +318,7 @@ export function NovelDetailPage() {
   const handleAnalyze = async () => {
     if (!novelId) return;
     setAnalysisPending(true);
+    stopReferenceJob();
     try {
       const job = await NovelsService.postNovelsAnalyze({ id: novelId, requestBody: {} });
       if (job.jobId) {
@@ -793,6 +817,12 @@ export function NovelDetailPage() {
     return Array.from(counts.entries()).map(([status, count]) => ({ status, count }));
   }, [panels]);
 
+  const referenceProgress = referenceJobState.job?.progress as
+    | { total?: number; completed?: number; failed?: number }
+    | undefined;
+  const referenceCompleted = referenceProgress?.completed ?? 0;
+  const referenceTotal = referenceProgress?.total ?? 0;
+
   const nextChapterNumber = useMemo(() => {
     const override = chapterNumberOverride.trim();
     if (override.length > 0) {
@@ -852,10 +882,16 @@ export function NovelDetailPage() {
           >
             {analysisPending || analyzeJobState.status === 'processing' ? '分析中...' : '重新分析'}
           </button>
-          {analyzeJobState.status === 'completed' && (
+          {referenceJobState.status === 'processing' && (
             <span className={styles.helperText}>
-              参考图生成中，稍后刷新圣经即可查看自动参考图
+              参考图生成中（{referenceCompleted}/{referenceTotal || '?'}）
             </span>
+          )}
+          {referenceJobState.status === 'completed' && (
+            <span className={styles.helperText}>参考图已生成，可在圣经面板中查看</span>
+          )}
+          {referenceJobState.status === 'failed' && referenceJobError && (
+            <span className={styles.errorText}>参考图生成失败：{referenceJobError}</span>
           )}
           <button
             type="button"

@@ -2846,9 +2846,13 @@ Resources:
           TABLE_NAME: !Ref ComicDataTable
           ASSETS_BUCKET: !Ref AssetsBucket
           ENVIRONMENT: !Ref Environment
+          BIBLES_TABLE_NAME: !Ref BiblesTable
+          BIBLES_BUCKET: !Ref AssetsBucket
       Policies:
         - DynamoDBCrudPolicy:
             TableName: !Ref ComicDataTable
+        - DynamoDBReadPolicy:
+            TableName: !Ref BiblesTable
         - S3CrudPolicy:
             BucketName: !Ref AssetsBucket
       Events:
@@ -2933,12 +2937,15 @@ Resources:
       MemorySize: 2048
       Environment:
         Variables:
+          TABLE_NAME: !Ref ComicDataTable
           ASSETS_BUCKET: !Ref AssetsBucket
           BIBLES_TABLE_NAME: !Ref BiblesTable
           BIBLES_BUCKET: !Ref AssetsBucket
           ENVIRONMENT: !Ref Environment
           QWEN_SECRET_ARN: !Ref QwenApiKeySecret
       Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref ComicDataTable
         - DynamoDBCrudPolicy:
             TableName: !Ref BiblesTable
         - S3CrudPolicy:

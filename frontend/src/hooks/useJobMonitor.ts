@@ -4,7 +4,7 @@ import type { Job } from '../api/generated';
 
 export type JobState =
   | { status: 'idle' }
-  | { status: 'processing'; jobId: string }
+  | { status: 'processing'; jobId: string; job?: Job }
   | { status: 'completed'; jobId: string; job?: Job }
   | { status: 'failed'; jobId?: string; error: string };
 
@@ -48,7 +48,7 @@ export function useJobMonitor(options: UseJobMonitorOptions = {}) {
           setJobState({ status: 'failed', jobId, error: job.error || '任务失败' });
           await onFailed?.({ jobId, job, error: job.error });
         } else {
-          setJobState({ status: 'processing', jobId });
+          setJobState({ status: 'processing', jobId, job });
         }
       } catch (error: unknown) {
         const message = error instanceof Error ? error.message : '任务轮询失败';

@@ -1,5 +1,5 @@
 const { DynamoDBClient } = require('@aws-sdk/client-dynamodb');
-const { DynamoDBDocumentClient } = require('@aws-sdk/lib-dynamodb');
+const { DynamoDBDocumentClient, GetCommand, UpdateCommand } = require('@aws-sdk/lib-dynamodb');
 const { S3Client } = require('@aws-sdk/client-s3');
 const { v4: uuid } = require('uuid');
 
@@ -12,6 +12,7 @@ const { buildCharacterPrompt, buildScenePrompt } = require('../../lib/prompt-bui
 const dynamoClient = new DynamoDBClient({});
 const docClient = DynamoDBDocumentClient.from(dynamoClient);
 const s3Client = new S3Client({});
+const TABLE_NAME = process.env.TABLE_NAME;
 
 let bibleManager;
 let imagenAdapterPromise = null;
@@ -67,17 +68,21 @@ async function processMessage(message) {
     throw new Error('Invalid message payload');
   }
 
-  if (message.type === 'character') {
-    await processCharacterMessage(message);
-    return;
-  }
+  try {
+    if (message.type === 'character') {
+      await processCharacterMessage(message);
+    } else if (message.type === 'scene') {
+      await processSceneMessage(message);
+    } else {
+      console.warn('[ReferenceWorker] Unknown message type:', message.type);
+      return;
+    }
 
-  if (message.type === 'scene') {
-    await processSceneMessage(message);
-    return;
+    await updateReferenceJobProgress(message.referenceJobId, { succeeded: true });
+  } catch (error) {
+    await updateReferenceJobProgress(message.referenceJobId, { succeeded: false, error });
+    throw error;
   }
-
-  console.warn('[ReferenceWorker] Unknown message type:', message.type);
 }
 
 async function processCharacterMessage(message) {
@@ -161,4 +166,82 @@ function buildReferenceKey(scope, novelId, identifier) {
     .toLowerCase()
     .replace(/[^a-z0-9-_]/g, '_');
   return `bibles/${novelId}/${scope}/${safeIdentifier}/auto/${Date.now()}-${uuid()}.png`;
+}
+
+async function updateReferenceJobProgress(referenceJobId, { succeeded, error }) {
+  if (!referenceJobId || !TABLE_NAME) {
+    return;
+  }
+
+  try {
+    const jobResult = await docClient.send(
+      new GetCommand({
+        TableName: TABLE_NAME,
+        Key: {
+          PK: `JOB#${referenceJobId}`,
+          SK: `JOB#${referenceJobId}`
+        }
+      })
+    );
+
+    if (!jobResult.Item) {
+      return;
+    }
+
+    const currentProgress = jobResult.Item.progress || {};
+    const total = currentProgress.total || 0;
+    const completed = (currentProgress.completed || 0) + (succeeded ? 1 : 0);
+    const failed = (currentProgress.failed || 0) + (succeeded ? 0 : 1);
+    const percentage = total > 0 ? Math.round((completed / total) * 100) : 0;
+    const nextProgress = {
+      ...currentProgress,
+      total,
+      completed,
+      failed,
+      percentage
+    };
+
+    let nextStatus = jobResult.Item.status;
+    if (completed + failed >= total && total > 0) {
+      nextStatus = failed > 0 ? 'failed' : 'completed';
+    } else if (nextStatus === 'queued') {
+      nextStatus = 'in_progress';
+    }
+
+    const updateExpressions = ['SET updatedAt = :updatedAt', 'progress = :progress'];
+    const expressionAttributeValues = {
+      ':updatedAt': new Date().toISOString(),
+      ':progress': nextProgress
+    };
+    const expressionAttributeNames = {};
+
+    if (nextStatus !== jobResult.Item.status) {
+      updateExpressions.push('#status = :status');
+      expressionAttributeValues[':status'] = nextStatus;
+      expressionAttributeNames['#status'] = 'status';
+    }
+
+    if (!succeeded && error) {
+      updateExpressions.push('lastErrorMessage = :lastErrorMessage');
+      expressionAttributeValues[':lastErrorMessage'] =
+        error instanceof Error ? error.message : String(error);
+    }
+
+    await docClient.send(
+      new UpdateCommand({
+        TableName: TABLE_NAME,
+        Key: {
+          PK: `JOB#${referenceJobId}`,
+          SK: `JOB#${referenceJobId}`
+        },
+        UpdateExpression: updateExpressions.join(', '),
+        ExpressionAttributeValues: expressionAttributeValues,
+        ...(Object.keys(expressionAttributeNames).length > 0
+          ? { ExpressionAttributeNames: expressionAttributeNames }
+          : {})
+      })
+    );
+  } catch (updateError) {
+    console.warn('[ReferenceWorker] Failed to update reference job progress', updateError);
+  }
 }
