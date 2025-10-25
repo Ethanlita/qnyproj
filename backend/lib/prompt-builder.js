@@ -59,6 +59,9 @@ const EXPRESSION_MAPPING = {
   'smirking': 'smirking expression, slight grin, confident look'
 };
 
+const JAPANESE_MANGA_DIRECTIVE =
+  'Japanese manga style, anime aesthetics, clean screentone line art, high contrast black and white, expressive faces';
+
 const DEFAULT_NEGATIVE_PROMPT = [
   'nsfw',
   'blurry',
@@ -111,7 +114,7 @@ function buildCharacterPrompt(character = {}, options = {}) {
     mode = 'preview' 
   } = options;
 
-  const parts = ['ultra detailed manga character portrait'];
+  const parts = ['ultra detailed manga character portrait', JAPANESE_MANGA_DIRECTIVE];
 
   // ⭐ 问题 3 修复: 使用视角映射
   const viewText = VIEW_MAPPING[view] || `${view} view`;
@@ -154,7 +157,7 @@ function buildCharacterPrompt(character = {}, options = {}) {
     parts.push(`style keywords: ${tagList.join(', ')}`);
   }
 
-  parts.push('studio lighting', 'clean background', 'line art with screentone shading');
+  parts.push('studio lighting', 'clean background', 'line art with screentone shading', JAPANESE_MANGA_DIRECTIVE);
 
   return {
     text: parts.join(', '),
@@ -193,7 +196,7 @@ function buildPanelPrompt(panel = {}, characterRefs = {}, options = {}) {
     visualPrompt
   } = panel;
 
-  const parts = ['manga panel illustration'];
+  const parts = ['manga panel illustration', JAPANESE_MANGA_DIRECTIVE];
   appendIfDefined(parts, mode === 'hd' ? 'high resolution detailed render' : 'preview quality');
   appendIfDefined(parts, scene);
   appendIfDefined(parts, shotType ? `${shotType} shot` : null);
@@ -225,7 +228,7 @@ function buildPanelPrompt(panel = {}, characterRefs = {}, options = {}) {
   }
 
   appendIfDefined(parts, visualPrompt);
-  parts.push('dynamic lighting', 'high quality manga aesthetics');
+  parts.push('dynamic lighting', 'high quality manga aesthetics', JAPANESE_MANGA_DIRECTIVE);
 
   return {
     text: parts.join(', '),
@@ -257,7 +260,7 @@ function formatCharacterDescriptor({ name, pose, expression }) {
 }
 
 function buildScenePrompt(scene = {}) {
-  const parts = ['environment concept art', 'ultra detailed manga background'];
+  const parts = ['environment concept art', 'ultra detailed manga background', JAPANESE_MANGA_DIRECTIVE];
   appendIfDefined(parts, scene.name);
   appendIfDefined(parts, scene.description);
   const visual = scene.visualCharacteristics || {};
@@ -276,7 +279,7 @@ function buildScenePrompt(scene = {}) {
     parts.push(scene.atmosphere);
   }
   appendIfDefined(parts, scene.narrativeRole);
-  parts.push('high detail, volumetric lighting, cinematic environment');
+  parts.push('high detail, volumetric lighting, cinematic environment', JAPANESE_MANGA_DIRECTIVE);
   return {
     text: parts.join(', '),
     negativePrompt: DEFAULT_NEGATIVE_PROMPT
