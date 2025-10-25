@@ -304,6 +304,16 @@ sam local start-api
 npm run deploy:backend
 ```
 
+### 运维脚本
+```bash
+# 清空堆栈内所有 SQS 队列并标记未完成 Job 为 failed
+npm run purge:sqs
+
+# 自定义参数示例
+# node scripts/clear-sqs.js --stack=qnyproj-api --types=analyze,reference_image --skip-purge
+```
+> `purge:sqs` 会自动从 CloudFormation 堆栈（默认 `qnyproj-api`）读取所有 SQS 队列和 DynamoDB 表，先清空队列再把状态为 `queued/pending/running` 的 Job 写成 `failed`。若只想标记 Job 而暂时保留队列中的消息，可附加 `--skip-purge`。
+
 ## 🔍 故障排除
 
 ### 问题：`Cannot find module 'yaml'`
