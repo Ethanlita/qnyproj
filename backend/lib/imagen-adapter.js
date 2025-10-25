@@ -140,9 +140,14 @@ class ImagenAdapter {
     // Call Gemini API (same as generate, but with image input)
     const url = `https://generativelanguage.googleapis.com/v1beta/models/${this.model}:generateContent?key=${this.apiKey}`;
 
-    const body = {
-      contents
-    };
+    const config = buildImageConfig({
+      aspectRatio,
+      responseModalities: ['Image']
+    });
+    const body = { contents };
+    if (config) {
+      body.config = config;
+    }
 
     const res = await this.fetch(url, {
       method: 'POST',
@@ -314,9 +319,14 @@ class ImagenAdapter {
       });
     }
 
-    const body = {
-      contents
-    };
+    const config = buildImageConfig({
+      aspectRatio,
+      responseModalities: ['Image']
+    });
+    const body = { contents };
+    if (config) {
+      body.config = config;
+    }
 
     const res = await this.fetch(url, {
       method: 'POST',
@@ -373,6 +383,56 @@ function truncate(value, maxLength) {
     return value;
   }
   return `${value.slice(0, maxLength)}...`;
+}
+
+function buildImageConfig(options = {}) {
+  const config = {};
+  const { responseModalities, aspectRatio } = options;
+
+  if (Array.isArray(responseModalities) && responseModalities.length > 0) {
+    config.response_modalities = responseModalities.map((item) => {
+      if (typeof item !== 'string') {
+        return item;
+      }
+      const normalized = item.trim().toLowerCase();
+      if (normalized === 'image') {
+        return 'Image';
+      }
+      if (normalized === 'text') {
+        return 'Text';
+      }
+      return item;
+    });
+  }
+
+  const normalizedAspectRatio = normalizeAspectRatio(aspectRatio);
+  if (normalizedAspectRatio) {
+    config.image_config = {
+      aspect_ratio: normalizedAspectRatio
+    };
+  }
+
+  return Object.keys(config).length > 0 ? config : undefined;
+}
+
+function normalizeAspectRatio(value) {
+  if (!value) {
+    return undefined;
+  }
+  if (typeof value === 'string') {
+    return value;
+  }
+  if (typeof value === 'number') {
+    return value.toFixed(2);
+  }
+  if (typeof value === 'object' && value.width && value.height) {
+    const width = Number(value.width);
+    const height = Number(value.height);
+    if (Number.isFinite(width) && Number.isFinite(height) && width > 0 && height > 0) {
+      return `${width}:${height}`;
+    }
+  }
+  return undefined;
 }
 
 module.exports = ImagenAdapter;
