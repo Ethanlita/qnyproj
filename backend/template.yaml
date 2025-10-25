@@ -226,7 +226,7 @@ Resources:
     Type: AWS::SQS::Queue
     Properties:
       QueueName: !Sub '${AWS::StackName}-reference-images'
-      VisibilityTimeout: 600
+      VisibilityTimeout: 910
       MessageRetentionPeriod: 432000  # 5 days
       ReceiveMessageWaitTimeSeconds: 10
       Tags:
