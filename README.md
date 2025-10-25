@@ -327,6 +327,12 @@ npm run generate:frontend-api
 ### 问题：API 类型不匹配
 **解决方案**: 确保在修改 API 定义后运行了 `npm run generate:frontend-api`
 
+### 问题：已携带 `Authorization` 仍然 401
+**解决方案**: API Gateway 使用 Cognito User Pool Authorizer，对 ID Token 的兼容性优于 Access Token。前端已经内置 `getApiToken()` 逻辑，优先发送 `id_token`，但如果你在 Postman、`curl` 或其他脚本中手动调试，需要：
+1. 在登录后从浏览器本地存储或 OIDC 回调结果中取 **ID Token** (`id_token` 字段)，不要用 `access_token`。
+2. 若仍旧 401，清除本地缓存重新登录（确保生成的新 ID Token 未过期），再重试 `curl -H "Authorization: Bearer <id_token>" https://.../dev/your-endpoint`。
+3. 必要时使用 `aws apigateway test-invoke-authorizer` 并把 ID Token 传入 `Authorization` 头，确认鉴权层通过后再排查后端。
+
 ## 🤖 CI/CD 自动部署
 
 本项目使用 GitHub Actions 实现完全自动化的 CI/CD 流程。
@@ -486,4 +492,3 @@ sam deploy --debug
 3. 提交更改 (`git commit -m 'Add some AmazingFeature'`)
 4. 推送到分支 (`git push origin feature/AmazingFeature`)
 5. 开启 Pull Request
-

@@ -110,17 +110,21 @@
   color: #94a3b8;
 }
 
-.controlRow {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 220px 140px;
-  gap: 16px;
-  align-items: center;
+.fieldGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
 }
 
-.controlRow select,
-.exportForm select,
-.crForm textarea,
-.crForm select,
+.fieldLabel {
+  font-size: 13px;
+  font-weight: 600;
+  color: #475569;
+}
+
+.fieldGroup select,
+.fieldGroup textarea,
+.fieldGroup input,
 .editForm textarea,
 .editForm select {
   border-radius: 12px;
@@ -130,17 +134,14 @@
   transition: border-color 0.2s ease, box-shadow 0.2s ease;
 }
 
-.controlRow select:focus,
-.exportForm select:focus,
-.crForm textarea:focus,
-.editForm textarea:focus {
+.fieldGroup select:focus,
+.fieldGroup textarea:focus,
+.fieldGroup input:focus,
+.editForm textarea:focus,
+.editForm select:focus {
   border-color: #6366f1;
   box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.1);
   outline: none;
-}
-
-.jobStatusRow {
-  display: flex;
 }
 
 .jobStatus {
@@ -177,23 +178,24 @@
   color: #334155;
 }
 
+.cardActions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 16px;
+}
+
 .crForm {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 16px;
 }
 
 .crForm textarea {
   resize: vertical;
 }
 
-.crActions {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-}
-
-.crHint {
+.helperText {
   margin: 0;
   font-size: 12px;
   color: #94a3b8;
@@ -220,7 +222,7 @@
 
 .exportForm {
   display: flex;
-  align-items: center;
+  flex-direction: column;
   gap: 16px;
 }
 
@@ -446,10 +448,6 @@
 }
 
 @media (max-width: 960px) {
-  .controlRow {
-    grid-template-columns: 1fr;
-  }
-
   .exportForm {
     flex-direction: column;
     align-items: stretch;

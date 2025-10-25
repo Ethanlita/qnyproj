@@ -380,8 +380,8 @@ export function NovelDetailPage() {
             <h2>面板批量生成</h2>
             <span>支持预览 / 高清双模式</span>
           </header>
-          <div className={styles.controlRow}>
-            <label htmlFor="mode">生成模式</label>
+          <div className={styles.fieldGroup}>
+            <label htmlFor="mode" className={styles.fieldLabel}>生成模式</label>
             <select
               id="mode"
               value={generatingMode}
@@ -390,6 +390,8 @@ export function NovelDetailPage() {
               <option value="preview">预览模式（512×288）</option>
               <option value="hd">高清模式（1920×1080）</option>
             </select>
+          </div>
+          <div className={styles.cardActions}>
             <button
               type="button"
               className={styles.primaryButton}
@@ -398,11 +400,9 @@ export function NovelDetailPage() {
             >
               {panelJobState.status === 'processing' ? '生成中...' : '开始生成'}
             </button>
-          </div>
-          {panelError && <div className={styles.errorBox}>⚠️ {panelError}</div>}
-          <div className={styles.jobStatusRow}>
             <JobStatusLabel label="最近任务" jobState={panelJobState} jobIdHint={storyboard?.id} />
           </div>
+          {panelError && <div className={styles.errorBox}>⚠️ {panelError}</div>}
           <div className={styles.badgeRow}>
             {panelStatusCounts.map(({ status, count }) => (
               <span key={status} className={styles.statusChip}>
@@ -419,21 +419,23 @@ export function NovelDetailPage() {
             <span>自动解析 CR-DSL 并执行修改闭环</span>
           </header>
           <form className={styles.crForm} onSubmit={handleSubmitCR}>
-            <label htmlFor="cr-input">修改指令</label>
-            <textarea
-              id="cr-input"
-              value={crInput}
-              onChange={(event) => setCrInput(event.target.value)}
-              rows={4}
-              placeholder="例：把第 2 页第 1 个面板的背景换成夜晚城市"
-            />
-            <div className={styles.crActions}>
+            <div className={styles.fieldGroup}>
+              <label htmlFor="cr-input" className={styles.fieldLabel}>修改指令</label>
+              <textarea
+                id="cr-input"
+                value={crInput}
+                onChange={(event) => setCrInput(event.target.value)}
+                rows={4}
+                placeholder="例：把第 2 页第 1 个面板的背景换成夜晚城市"
+              />
+            </div>
+            <div className={styles.cardActions}>
               <button type="submit" className={styles.primaryButton} disabled={crJobState.status === 'processing'}>
                 {crJobState.status === 'processing' ? '执行中...' : '提交修改请求'}
               </button>
               <JobStatusLabel label="任务状态" jobState={crJobState} jobIdHint={crJobId ?? undefined} />
             </div>
-            <p className={styles.crHint}>{crMessage}</p>
+            <p className={styles.helperText}>{crMessage}</p>
           </form>
           {crDsl && (
             <div className={styles.dslPreview}>
@@ -451,25 +453,29 @@ export function NovelDetailPage() {
             <span>PDF / Webtoon 长图 / 资源包</span>
           </header>
           <form className={styles.exportForm} onSubmit={handleCreateExport}>
-            <label htmlFor="export-format">导出格式</label>
-            <select
-              id="export-format"
-              value={exportFormat}
-              onChange={(event) => setExportFormat(event.target.value as 'pdf' | 'webtoon' | 'resources')}
-            >
-              <option value="pdf">PDF</option>
-              <option value="webtoon">Webtoon 长图</option>
-              <option value="resources">资源包（ZIP）</option>
-            </select>
-            <button
-              type="submit"
-              className={styles.primaryButton}
-              disabled={exportJobState.status === 'processing'}
-            >
-              {exportJobState.status === 'processing' ? '导出中...' : '创建导出'}
-            </button>
+            <div className={styles.fieldGroup}>
+              <label htmlFor="export-format" className={styles.fieldLabel}>导出格式</label>
+              <select
+                id="export-format"
+                value={exportFormat}
+                onChange={(event) => setExportFormat(event.target.value as 'pdf' | 'webtoon' | 'resources')}
+              >
+                <option value="pdf">PDF</option>
+                <option value="webtoon">Webtoon 长图</option>
+                <option value="resources">资源包（ZIP）</option>
+              </select>
+            </div>
+            <div className={styles.cardActions}>
+              <button
+                type="submit"
+                className={styles.primaryButton}
+                disabled={exportJobState.status === 'processing'}
+              >
+                {exportJobState.status === 'processing' ? '导出中...' : '创建导出'}
+              </button>
+              <JobStatusLabel label="导出任务" jobState={exportJobState} jobIdHint={exportJobId ?? undefined} />
+            </div>
           </form>
-          <JobStatusLabel label="导出任务" jobState={exportJobState} jobIdHint={exportJobId ?? undefined} />
           {exportInfo && (
             <div className={styles.exportResult}>
               <div>

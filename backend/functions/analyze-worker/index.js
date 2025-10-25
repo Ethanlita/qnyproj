@@ -19,7 +19,11 @@ const BibleManager = require('../../lib/bible-manager');
 
 // AWS Clients
 const dynamodbClient = new DynamoDBClient({});
-const docClient = DynamoDBDocumentClient.from(dynamodbClient);
+const docClient = DynamoDBDocumentClient.from(dynamodbClient, {
+  marshallOptions: {
+    removeUndefinedValues: true
+  }
+});
 const s3Client = new S3Client({});
 const secretsClient = new SecretsManagerClient({});
 
