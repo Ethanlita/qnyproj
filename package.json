@@ -11,6 +11,7 @@
     "build:frontend": "npm run generate:frontend-api && cd frontend && pnpm run build",
     "deploy:backend": "cd backend && ./scripts/deploy-with-secrets.sh",
     "verify:openapi": "python3 scripts/verify-openapi-sync.py",
+    "purge:sqs": "node scripts/clear-sqs.js",
     "sync:secrets": "cd backend && node scripts/sync-secrets.js",
     "test:secrets": "cd backend && node scripts/test-secrets.js",
     "test:contract": "npx dredd",

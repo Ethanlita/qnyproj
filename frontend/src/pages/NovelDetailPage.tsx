@@ -276,6 +276,15 @@ export function NovelDetailPage() {
   }, [loadNovel]);
 
   useEffect(() => {
+    if (!editingPanel) return;
+    const latest = panels.find((panel) => panel.id === editingPanel.id);
+    if (latest && latest !== editingPanel) {
+      setEditingPanel(latest);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [panels, editingPanel?.id]);
+
+  useEffect(() => {
     void loadBible();
   }, [loadBible]);
 
@@ -1452,6 +1461,7 @@ export function NovelDetailPage() {
           onInstructionChange={setEditInstruction}
           maskDataUrl={maskDataUrl}
           onMaskUpload={handleMaskUpload}
+          onSceneUpdated={() => void loadStoryboard()}
           onClose={() => {
             setEditingPanel(null);
             stopPanelEditJob();
@@ -1732,6 +1742,7 @@ function PanelEditSheet({
   onInstructionChange,
   maskDataUrl,
   onMaskUpload,
+  onSceneUpdated,
   onClose,
   onSubmit,
   jobState
@@ -1743,10 +1754,43 @@ function PanelEditSheet({
   onInstructionChange: (value: string) => void;
   maskDataUrl?: string;
   onMaskUpload: (event: ChangeEvent<HTMLInputElement>) => void;
+  onSceneUpdated?: () => void | Promise<void>;
   onClose: () => void;
   onSubmit: (event: FormEvent<HTMLFormElement>) => void;
   jobState: JobStateSnapshot;
 }) {
+  const [sceneText, setSceneText] = useState(
+    panel.scene || (panel as Record<string, any>).content?.scene || ''
+  );
+  const [sceneSaving, setSceneSaving] = useState(false);
+  const [sceneError, setSceneError] = useState<string | null>(null);
+
+  useEffect(() => {
+    setSceneText(panel.scene || (panel as Record<string, any>).content?.scene || '');
+    setSceneError(null);
+  }, [panel.id, panel.scene]);
+
+  const handleSceneSave = async () => {
+    try {
+      setSceneSaving(true);
+      setSceneError(null);
+      await PanelsService.patchPanels({
+        panelId: panel.id,
+        requestBody: {
+          scene: sceneText
+        }
+      });
+      if (onSceneUpdated) {
+        await onSceneUpdated();
+      }
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      setSceneError(message);
+    } finally {
+      setSceneSaving(false);
+    }
+  };
+
   return (
     <div className={styles.sheetOverlay}>
       <div className={styles.sheet}>
@@ -1773,9 +1817,32 @@ function PanelEditSheet({
               </div>
               <div>
                 <dt>场景</dt>
-                    <dd>{panel.scene || '未填写'}</dd>
+                <dd>{panel.scene || '未填写'}</dd>
               </div>
             </dl>
+          </div>
+          <div className={styles.sheetScene}>
+            <label>
+              场景描述
+              <textarea
+                className={styles.sheetTextarea}
+                rows={4}
+                value={sceneText}
+                onChange={(event) => setSceneText(event.target.value)}
+              />
+            </label>
+            <p className={styles.sheetNotice}>保存后重新生成面板会使用更新后的场景内容。</p>
+            {sceneError && <p className={styles.errorText}>⚠️ {sceneError}</p>}
+            <div className={styles.sheetActions}>
+              <button
+                type="button"
+                className={styles.secondaryButton}
+                onClick={() => void handleSceneSave()}
+                disabled={sceneSaving}
+              >
+                {sceneSaving ? '保存场景中...' : '保存场景文本'}
+              </button>
+            </div>
           </div>
           <form className={styles.editForm} onSubmit={onSubmit}>
             <label>编辑模式</label>
