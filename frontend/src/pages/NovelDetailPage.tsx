@@ -852,6 +852,11 @@ export function NovelDetailPage() {
           >
             {analysisPending || analyzeJobState.status === 'processing' ? '分析中...' : '重新分析'}
           </button>
+          {analyzeJobState.status === 'completed' && (
+            <span className={styles.helperText}>
+              参考图生成中，稍后刷新圣经即可查看自动参考图
+            </span>
+          )}
           <button
             type="button"
             className={styles.primaryButton}
