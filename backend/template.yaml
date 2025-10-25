@@ -222,6 +222,19 @@ Resources:
         - Key: Application
           Value: qnyproj-api
   
+  ReferenceImageQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub '${AWS::StackName}-reference-images'
+      VisibilityTimeout: 600
+      MessageRetentionPeriod: 432000  # 5 days
+      ReceiveMessageWaitTimeSeconds: 10
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Application
+          Value: qnyproj-api
+  
   MyApiGateway:
     Type: AWS::Serverless::Api
     Properties:
@@ -2409,10 +2422,16 @@ Resources:
           TABLE_NAME: !Ref ComicDataTable
           ASSETS_BUCKET: !Ref AssetsBucket
           ENVIRONMENT: !Ref Environment
+          BIBLES_TABLE_NAME: !Ref BiblesTable
+          BIBLES_BUCKET: !Ref AssetsBucket
           QWEN_SECRET_ARN: !Ref QwenApiKeySecret
       Policies:
         - DynamoDBCrudPolicy:
             TableName: !Ref ComicDataTable
+        - DynamoDBReadPolicy:
+            TableName: !Ref BiblesTable
+        - DynamoDBReadPolicy:
+            TableName: !Ref BiblesTable
         - S3CrudPolicy:
             BucketName: !Ref AssetsBucket
         - Statement:
@@ -2503,6 +2522,9 @@ Resources:
           QWEN_SECRET_ARN: !Ref QwenApiKeySecret
           BIBLES_TABLE_NAME: !Ref BiblesTable
           BIBLES_BUCKET: !Ref AssetsBucket
+          BIBLES_TABLE_NAME: !Ref BiblesTable
+          BIBLES_BUCKET: !Ref AssetsBucket
+          REFERENCE_QUEUE_URL: !Ref ReferenceImageQueue
       Policies:
         - DynamoDBCrudPolicy:
             TableName: !Ref ComicDataTable
@@ -2510,6 +2532,8 @@ Resources:
             TableName: !Ref BiblesTable
         - S3CrudPolicy:
             BucketName: !Ref AssetsBucket
+        - SQSSendMessagePolicy:
+            QueueName: !GetAtt ReferenceImageQueue.QueueName
         - Statement:
             - Effect: Allow
               Action:
@@ -2570,9 +2594,13 @@ Resources:
           TABLE_NAME: !Ref ComicDataTable
           ASSETS_BUCKET: !Ref AssetsBucket
           ENVIRONMENT: !Ref Environment
+          BIBLES_TABLE_NAME: !Ref BiblesTable
+          BIBLES_BUCKET: !Ref AssetsBucket
       Policies:
         - DynamoDBCrudPolicy:
             TableName: !Ref ComicDataTable
+        - DynamoDBReadPolicy:
+            TableName: !Ref BiblesTable
         - S3CrudPolicy:
             BucketName: !Ref AssetsBucket
       Events:
@@ -2648,9 +2676,13 @@ Resources:
           ASSETS_BUCKET: !Ref AssetsBucket
           ENVIRONMENT: !Ref Environment
           QWEN_SECRET_ARN: !Ref QwenApiKeySecret
+          BIBLES_TABLE_NAME: !Ref BiblesTable
+          BIBLES_BUCKET: !Ref AssetsBucket
       Policies:
         - DynamoDBCrudPolicy:
             TableName: !Ref ComicDataTable
+        - DynamoDBReadPolicy:
+            TableName: !Ref BiblesTable
         - S3CrudPolicy:
             BucketName: !Ref AssetsBucket
         - Statement:
@@ -2778,6 +2810,41 @@ Resources:
               Filters:
                 - Pattern: '{"eventName": ["INSERT"], "dynamodb": {"NewImage": {"SK": {"S": [{"prefix": "PANEL_TASK#"}]}}}}'
 
+  ReferenceWorkerFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: .
+      Handler: functions/reference-worker/index.handler
+      Runtime: nodejs22.x
+      Architectures:
+        - x86_64
+      Timeout: 900
+      MemorySize: 2048
+      Environment:
+        Variables:
+          ASSETS_BUCKET: !Ref AssetsBucket
+          BIBLES_TABLE_NAME: !Ref BiblesTable
+          BIBLES_BUCKET: !Ref AssetsBucket
+          ENVIRONMENT: !Ref Environment
+          QWEN_SECRET_ARN: !Ref QwenApiKeySecret
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref BiblesTable
+        - S3CrudPolicy:
+            BucketName: !Ref AssetsBucket
+        - Statement:
+            - Effect: Allow
+              Action:
+                - secretsmanager:GetSecretValue
+              Resource: !Ref QwenApiKeySecret
+      Events:
+        ReferenceQueueEvent:
+          Type: SQS
+          Properties:
+            Queue: !GetAtt ReferenceImageQueue.Arn
+            BatchSize: 5
+            MaximumBatchingWindowInSeconds: 5
+
   # ⭐ 问题 2 修复: Retry Handler Lambda
   RetryHandlerFunction:
     Type: AWS::Serverless::Function
@@ -2831,6 +2898,13 @@ Resources:
               Ref: MyApiGateway
             Path: /panels/{panelId}
             Method: GET
+        PanelsFunctionEvent2:
+          Type: Api
+          Properties:
+            RestApiId:
+              Ref: MyApiGateway
+            Path: /panels/{panelId}
+            Method: PATCH
   EditPanelFunction:
     Type: AWS::Serverless::Function
     Properties:

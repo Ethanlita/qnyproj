@@ -1,5 +1,5 @@
 const { DynamoDBClient } = require('@aws-sdk/client-dynamodb');
-const { DynamoDBDocumentClient, QueryCommand } = require('@aws-sdk/lib-dynamodb');
+const { DynamoDBDocumentClient, QueryCommand, PutCommand } = require('@aws-sdk/lib-dynamodb');
 const { successResponse, errorResponse } = require('../../lib/response');
 const { getUserId } = require('../../lib/auth');
 const { getPresignedUrl } = require('../../lib/s3-utils');
@@ -47,25 +47,24 @@ exports.handler = async (event) => {
       return errorResponse(404, `Panel ${panelId} not found`);
     }
 
-    const images = await buildPanelImages(panel.imagesS3 || {});
+    if (method === 'PATCH') {
+      const userId = getUserId(event);
+      if (!userId) {
+        return errorResponse(401, 'Unauthorized');
+      }
 
-    return successResponse({
-      id: panel.id,
-      storyboardId: panel.storyboardId,
-      novelId: panel.novelId,
-      page: panel.page,
-      index: panel.index,
-      scene: panel.scene,
-      shotType: panel.shotType,
-      cameraAngle: panel.cameraAngle,
-      composition: panel.composition,
-      characters: panel.characters || [],
-      dialogue: panel.dialogue || [],
-      visualPrompt: panel.visualPrompt || '',
-      status: panel.status || 'pending',
-      images: images.urls,
-      imagesS3: images.s3
-    });
+      let payload;
+      try {
+        payload = parseJsonBody(event.body);
+      } catch (err) {
+        return errorResponse(400, err.message);
+      }
+
+      const updatedPanel = await updatePanel(panel, payload);
+      return successResponse(await formatPanelResponse(updatedPanel));
+    }
+
+    return successResponse(await formatPanelResponse(panel));
   } catch (error) {
     console.error('[PanelsFunction] Error:', error);
     return errorResponse(500, error.message || 'Internal Server Error');
@@ -101,4 +100,106 @@ async function buildPanelImages(imagesS3) {
     urls[mode] = await getPresignedUrl(key);
   }
   return { urls, s3 };
+}
+
+function parseJsonBody(body) {
+  if (!body) {
+    throw new Error('Missing request body');
+  }
+  try {
+    return JSON.parse(body);
+  } catch (error) {
+    throw new Error('Invalid JSON body');
+  }
+}
+
+async function updatePanel(panel, payload) {
+  if (!payload || typeof payload !== 'object') {
+    throw new Error('Payload must be an object');
+  }
+
+  const next = { ...panel };
+  const assign = (field, transformer) => {
+    if (Object.prototype.hasOwnProperty.call(payload, field)) {
+      next[field] = transformer ? transformer(payload[field]) : payload[field];
+    }
+  };
+
+  assign('scene', (value) => (typeof value === 'string' ? value : panel.scene));
+  assign('shotType', (value) => (typeof value === 'string' ? value : panel.shotType));
+  assign('cameraAngle', (value) => (typeof value === 'string' ? value : panel.cameraAngle));
+  assign('composition', (value) => (value && typeof value === 'object' ? value : panel.composition));
+  assign('visualPrompt', (value) => (typeof value === 'string' ? value : panel.visualPrompt));
+  assign('background', (value) => (value && typeof value === 'object' ? value : panel.background));
+  assign('atmosphere', (value) => (value && typeof value === 'object' ? value : panel.atmosphere));
+  assign('characters', (value) => normalizeCharacters(value, panel.characters));
+  assign('dialogue', (value) => normalizeDialogue(value, panel.dialogue));
+
+  next.updatedAt = new Date().toISOString();
+
+  await docClient.send(
+    new PutCommand({
+      TableName: TABLE_NAME,
+      Item: next
+    })
+  );
+
+  return next;
+}
+
+async function formatPanelResponse(panel) {
+  const images = await buildPanelImages(panel.imagesS3 || {});
+  return {
+    id: panel.id,
+    storyboardId: panel.storyboardId,
+    novelId: panel.novelId,
+    page: panel.page,
+    index: panel.index,
+    scene: panel.scene,
+    shotType: panel.shotType,
+    cameraAngle: panel.cameraAngle,
+    composition: panel.composition,
+    characters: panel.characters || [],
+    dialogue: panel.dialogue || [],
+    visualPrompt: panel.visualPrompt || '',
+    background: panel.background || null,
+    atmosphere: panel.atmosphere || null,
+    status: panel.status || 'pending',
+    images: images.urls,
+    imagesS3: images.s3
+  };
+}
+
+function normalizeCharacters(value, fallback = []) {
+  if (!value) {
+    return Array.isArray(fallback) ? fallback : [];
+  }
+  if (!Array.isArray(value)) {
+    return Array.isArray(fallback) ? fallback : [];
+  }
+  return value
+    .filter((item) => item && typeof item === 'object')
+    .map((item) => ({
+      charId: item.charId || null,
+      configId: item.configId || null,
+      name: item.name || '',
+      pose: item.pose || '',
+      expression: item.expression || ''
+    }));
+}
+
+function normalizeDialogue(value, fallback = []) {
+  if (!value) {
+    return Array.isArray(fallback) ? fallback : [];
+  }
+  if (!Array.isArray(value)) {
+    return Array.isArray(fallback) ? fallback : [];
+  }
+  return value
+    .filter((item) => item && typeof item === 'object')
+    .map((item) => ({
+      speaker: item.speaker || '',
+      text: item.text || '',
+      bubbleType: item.bubbleType || 'speech'
+    }));
 }

@@ -262,10 +262,100 @@ async function loadCharacterConfiguration(charId, configId) {
   return defaultResult.Item || null;
 }
 
+async function loadBibleContext(novelId, version) {
+  if (!novelId) return null;
+  const cacheKey = `${novelId}:${version || 'latest'}`;
+  if (bibleCache.has(cacheKey)) {
+    return bibleCache.get(cacheKey);
+  }
+
+  try {
+    const manager = getBibleManager();
+    const options = version ? { version } : undefined;
+    const bible = version ? await manager.getBible(novelId, options) : await manager.getBible(novelId);
+    if (!bible.exists) {
+      bibleCache.set(cacheKey, null);
+      return null;
+    }
+
+    const context = {
+      version: bible.version,
+      characters: bible.characters || [],
+      scenes: bible.scenes || [],
+      charactersByName: new Map(),
+      scenesById: new Map()
+    };
+
+    for (const character of context.characters) {
+      if (character?.name) {
+        context.charactersByName.set(character.name.toLowerCase(), character);
+      }
+    }
+
+    for (const scene of context.scenes) {
+      if (scene?.id) {
+        context.scenesById.set(scene.id, scene);
+      }
+    }
+
+    bibleCache.set(cacheKey, context);
+    return context;
+  } catch (error) {
+    console.warn('[PanelWorker] Failed to load bible context', error);
+    bibleCache.set(cacheKey, null);
+    return null;
+  }
+}
+
+function enrichPanelWithBible(panel, bibleContext) {
+  if (!bibleContext) {
+    return panel;
+  }
+  const clone = JSON.parse(JSON.stringify(panel));
+
+  if (Array.isArray(clone.characters)) {
+    clone.characters = clone.characters.map((character) => {
+      if (!character?.name) {
+        return character;
+      }
+      const bibleEntry = bibleContext.charactersByName.get(character.name.toLowerCase());
+      if (!bibleEntry) {
+        return character;
+      }
+      const enriched = { ...character };
+      enriched.appearance = {
+        ...(bibleEntry.appearance || {}),
+        ...(character.appearance || {})
+      };
+      if ((!enriched.personality || enriched.personality.length === 0) && bibleEntry.personality) {
+        enriched.personality = bibleEntry.personality;
+      }
+      return enriched;
+    });
+  }
+
+  const sceneId = clone.background?.sceneId;
+  if (sceneId) {
+    const sceneEntry = bibleContext.scenesById.get(sceneId);
+    if (sceneEntry) {
+      clone.scene = clone.scene || sceneEntry.description;
+      clone.background = {
+        ...clone.background,
+        setting: clone.background.setting || sceneEntry.name,
+        details: clone.background.details || sceneEntry.visualCharacteristics?.keyLandmarks
+      };
+    }
+  }
+
+  return clone;
+}
+
 function collectReferenceUris(characterRefs) {
   const uris = [];
   const bucket = process.env.ASSETS_BUCKET;
-  for (const ref of Object.values(characterRefs)) {
+  const entries = (characterRefs && characterRefs.entries) || [];
+
+  for (const ref of entries) {
     for (const key of ref.portraitsS3 || []) {
       if (key.startsWith('s3://')) {
         uris.push(key);
@@ -280,7 +370,11 @@ function collectReferenceUris(characterRefs) {
         uris.push(`s3://${bucket}/${key}`);
       }
     }
+    for (const uri of ref.bibleReferenceImages || []) {
+      uris.push(uri);
+    }
   }
+
   return Array.from(new Set(uris));
 }
 

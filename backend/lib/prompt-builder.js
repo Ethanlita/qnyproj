@@ -256,6 +256,33 @@ function formatCharacterDescriptor({ name, pose, expression }) {
   return segments.join(', ').trim();
 }
 
+function buildScenePrompt(scene = {}) {
+  const parts = ['environment concept art', 'ultra detailed manga background'];
+  appendIfDefined(parts, scene.name);
+  appendIfDefined(parts, scene.description);
+  const visual = scene.visualCharacteristics || {};
+  appendIfDefined(parts, visual.architecture);
+  if (visual.keyLandmarks && visual.keyLandmarks.length > 0) {
+    parts.push(`landmarks: ${visual.keyLandmarks.join(', ')}`);
+  }
+  if (visual.colorScheme) {
+    parts.push(`color palette ${visual.colorScheme}`);
+  }
+  if (visual.lighting) {
+    appendIfDefined(parts, visual.lighting.naturalLight ? `natural light ${visual.lighting.naturalLight}` : null);
+    appendIfDefined(parts, visual.lighting.artificialLight ? `artificial light ${visual.lighting.artificialLight}` : null);
+  }
+  if (scene.atmosphere) {
+    parts.push(scene.atmosphere);
+  }
+  appendIfDefined(parts, scene.narrativeRole);
+  parts.push('high detail, volumetric lighting, cinematic environment');
+  return {
+    text: parts.join(', '),
+    negativePrompt: DEFAULT_NEGATIVE_PROMPT
+  };
+}
+
 function collectReferenceUris(portraitsS3 = [], gcsPortraitUris = [], context = {}) {
   const result = [];
 
@@ -290,5 +317,6 @@ module.exports = {
   STYLE_MAPPING,
   EXPRESSION_MAPPING,
   buildCharacterPrompt,
-  buildPanelPrompt
+  buildPanelPrompt,
+  buildScenePrompt
 };

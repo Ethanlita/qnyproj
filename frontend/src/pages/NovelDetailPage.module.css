@@ -82,6 +82,254 @@
   gap: 24px;
 }
 
+.bibleSection {
+  background: rgba(255, 255, 255, 0.95);
+  border-radius: 20px;
+  padding: 24px;
+  box-shadow: 0 24px 48px rgba(15, 23, 42, 0.06);
+  border: 1px solid rgba(226, 232, 240, 0.6);
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.sectionHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.sectionHeader h2 {
+  margin: 0;
+  font-size: 20px;
+  color: #0f172a;
+}
+
+.sectionHeader span {
+  margin-left: 12px;
+  font-size: 13px;
+  color: #64748b;
+}
+
+.bibleGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 20px;
+}
+
+.bibleList {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  max-height: 540px;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.bibleCard {
+  border: 1px solid rgba(226, 232, 240, 0.8);
+  border-radius: 16px;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  background: #fdfdff;
+}
+
+.bibleCardHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.referenceGallery {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.referenceItem {
+  width: 96px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.referenceItem img {
+  width: 96px;
+  height: 96px;
+  object-fit: cover;
+  border-radius: 12px;
+  border: 1px solid rgba(226, 232, 240, 0.8);
+}
+
+.referencePlaceholder {
+  width: 96px;
+  height: 96px;
+  border-radius: 12px;
+  border: 1px dashed rgba(148, 163, 184, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  color: #94a3b8;
+}
+
+.referenceItem figcaption {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 12px;
+  color: #475569;
+}
+
+.uploadButton {
+  border: 1px dashed rgba(148, 163, 184, 0.6);
+  padding: 12px;
+  border-radius: 12px;
+  font-size: 13px;
+  color: #475569;
+  cursor: pointer;
+  position: relative;
+  min-width: 120px;
+  text-align: center;
+}
+
+.uploadButton input {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.bibleForm {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  border-top: 1px solid rgba(226, 232, 240, 0.8);
+  padding-top: 12px;
+}
+
+.bibleFormGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 10px;
+}
+
+.bibleForm label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12px;
+  color: #475569;
+}
+
+.bibleForm input,
+.bibleForm textarea,
+.bibleForm select {
+  border-radius: 10px;
+  border: 1px solid rgba(148, 163, 184, 0.4);
+  padding: 8px 10px;
+  font-size: 13px;
+}
+
+.linkButton {
+  border: none;
+  background: none;
+  color: #ef4444;
+  font-size: 11px;
+  cursor: pointer;
+  padding: 0;
+}
+
+.helperTextSmall {
+  margin: 0;
+  font-size: 12px;
+  color: #94a3b8;
+}
+
+.storyboardSection {
+  background: rgba(255, 255, 255, 0.95);
+  border-radius: 20px;
+  padding: 24px;
+  box-shadow: 0 24px 48px rgba(15, 23, 42, 0.06);
+  border: 1px solid rgba(226, 232, 240, 0.6);
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.storyboardList {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  max-height: 640px;
+  overflow-y: auto;
+  padding-right: 6px;
+}
+
+.storyboardCard {
+  border: 1px solid rgba(226, 232, 240, 0.8);
+  border-radius: 16px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  background: #fdfdff;
+}
+
+.storyboardCardHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.storyboardCardHeader strong {
+  font-size: 15px;
+  color: #0f172a;
+  margin-right: 8px;
+}
+
+.storyboardCardHeader span {
+  font-size: 12px;
+  color: #64748b;
+}
+
+.panelMetaList {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
+}
+
+.panelMetaList dt {
+  font-size: 12px;
+  color: #94a3b8;
+  margin: 0 0 4px;
+}
+
+.panelMetaList dd {
+  margin: 0;
+  font-size: 13px;
+  color: #1e293b;
+}
+
+.panelTextForm {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  border-top: 1px solid rgba(226, 232, 240, 0.8);
+  padding-top: 12px;
+}
+
+.panelTextForm textarea,
+.panelTextForm select {
+  width: 100%;
+  border-radius: 10px;
+  border: 1px solid rgba(148, 163, 184, 0.4);
+  padding: 10px 12px;
+  font-size: 13px;
+}
+
 .card {
   background: rgba(255, 255, 255, 0.95);
   border-radius: 20px;
