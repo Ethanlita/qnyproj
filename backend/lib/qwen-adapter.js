@@ -17,6 +17,8 @@
 const OpenAI = require('openai');
 const fs = require('fs');
 const path = require('path');
+const { jsonrepair } = require('jsonrepair');
+const { applyPatch } = require('fast-json-patch');
 const { buildSystemPrompt } = require('./schema-to-prompt');
 
 /**
@@ -433,7 +435,8 @@ class QwenAdapter {
             }
           },
           temperature: 0.3,
-          max_tokens: 8000
+          // 默认 8000 token 容量不足以承载整章内容，这里放宽到 64k（10 倍）
+          max_tokens: 64000
         };
         
         this.log('\n⏳ Sending request to Qwen...');
@@ -446,16 +449,22 @@ class QwenAdapter {
         // 🔍 Log response details (now goes to both file and CloudWatch)
         this.log('\n📥 ===== QWEN API RESPONSE =====');
         this.log(`⏱️  Elapsed: ${elapsedMs} ms`);
-        this.log(`🎯 Finish Reason: ${response.choices[0].finish_reason}`);
+        const finishReason = response.choices[0].finish_reason;
+        this.log(`🎯 Finish Reason: ${finishReason}`);
         this.log(`📊 Token Usage: ${JSON.stringify(response.usage, null, 2)}`);
         this.log('\n📄 Raw Response Content:');
         this.log('─'.repeat(60));
         const content = response.choices[0].message.content;
         this.log(content);
         this.log('─'.repeat(60));
+        if (finishReason === 'length') {
+          this.log('[QwenAdapter] ⚠️ Qwen response hit max_tokens and was truncated. Tail preview:');
+          this.log(content.slice(-400));
+          this.log('─'.repeat(60));
+        }
         
-        // Parse and validate JSON
-        const parsed = JSON.parse(content);
+        // Parse with repair + structural normalization
+        const parsed = this.ensureStoryboardShape(this.parseJsonWithRepair(content));
         this.log('\n✅ Parsed JSON Structure:');
         this.log(`  - panels: ${Array.isArray(parsed.panels) ? parsed.panels.length : 'N/A'}`);
         this.log(`  - characters: ${Array.isArray(parsed.characters) ? parsed.characters.length : 'N/A'}`);
@@ -607,6 +616,81 @@ class QwenAdapter {
       scenes: Array.from(sceneMap.values()),
       totalPages: Math.ceil(mergedPanels.length / PANELS_PER_PAGE)
     };
+  }
+
+  /**
+   * Parse JSON with fallback repair for malformed symbols
+   * @param {string} rawContent
+   * @returns {Object}
+   */
+  parseJsonWithRepair(rawContent) {
+    const normalizedContent = rawContent
+      .replace(/[\u201c\u201d]/g, '"')
+      .replace(/[\u2018\u2019]/g, "'");
+    try {
+      return JSON.parse(normalizedContent);
+    } catch (parseError) {
+      this.log(`[QwenAdapter] ⚠️ JSON parse failed (${parseError.message}), attempting jsonrepair...`);
+      this.log('[QwenAdapter] 🔍 Problematic snippet (tail 400 chars):');
+      this.log(normalizedContent.slice(-400));
+      this.log('─'.repeat(60));
+      try {
+        const repaired = jsonrepair(normalizedContent);
+        this.log('[QwenAdapter] ✅ jsonrepair succeeded');
+        return JSON.parse(repaired);
+      } catch (repairError) {
+        this.log(`[QwenAdapter] ❌ jsonrepair failed: ${repairError.message}`);
+        throw parseError;
+      }
+    }
+  }
+
+  /**
+   * Ensure storyboard top-level structures are arrays using fast-json-patch
+   * @param {Object} storyboard
+   * @returns {Object}
+   */
+  ensureStoryboardShape(storyboard = {}) {
+    const target = typeof storyboard === 'object' && storyboard !== null ? storyboard : {};
+    const patches = [];
+
+    const ensureArray = (key) => {
+      const value = target[key];
+      if (!Array.isArray(value)) {
+        patches.push({
+          op: value === undefined ? 'add' : 'replace',
+          path: `/${key}`,
+          value: []
+        });
+      }
+    };
+
+    ensureArray('panels');
+    ensureArray('characters');
+    ensureArray('scenes');
+
+    if (patches.length > 0) {
+      this.log(`[QwenAdapter] 🔧 Applying ${patches.length} structural patches via fast-json-patch`);
+      applyPatch(target, patches, true, false);
+    }
+
+    target.panels = (target.panels || [])
+      .filter(Boolean)
+      .map((panel) => ({
+        ...(panel || {}),
+        characters: Array.isArray(panel?.characters) ? panel.characters.filter(Boolean) : [],
+        dialogue: Array.isArray(panel?.dialogue) ? panel.dialogue.filter(Boolean) : []
+      }));
+
+    target.characters = (target.characters || []).filter(Boolean);
+    target.scenes = (target.scenes || []).filter(Boolean);
+
+    if (typeof target.totalPages !== 'number') {
+      const panelCount = target.panels?.length || 0;
+      target.totalPages = panelCount > 0 ? Math.ceil(panelCount / 6) : 0;
+    }
+
+    return target;
   }
   
   /**

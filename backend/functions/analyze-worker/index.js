@@ -606,29 +606,39 @@ exports.handler = async (event) => {
       const existingSceneCount = Array.isArray(existingBible.scenes) ? existingBible.scenes.length : 0;
       console.log(`[AnalyzeWorker] Bible loaded: version ${existingBible.version} (characters: ${existingCharacterCount}, scenes: ${existingSceneCount})`);
       
-      // 4. Generate storyboard
-      await updateJob(jobId, 'running', { percentage: 30, stage: 'generating_storyboard' });
-      const storyboard = await qwenAdapter.generateStoryboard({
-        text: novelText,
-        jsonSchema: storyboardSchema,
-        strictMode: true,
-        maxChunkLength: 8000,
-        existingCharacters: existingBible.characters || [],
-        existingScenes: existingBible.scenes || [],
-        chapterNumber
-      });
-      
-      console.log('[AnalyzeWorker] Storyboard generated');
-      console.log(`  - Panels: ${storyboard.panels.length}`);
-      console.log(`  - Characters: ${storyboard.characters.length}`);
-      console.log(`  - Scenes: ${storyboard.scenes ? storyboard.scenes.length : 0}`);
-      
-      // 5. Validate storyboard
-      await updateJob(jobId, 'running', { percentage: 85, stage: 'validating' });
-      const valid = validateStoryboard(storyboard);
-      
-      if (!valid) {
-        console.error('[AnalyzeWorker] ❌ Storyboard validation failed');
+      const MAX_SCHEMA_RETRY = 1;
+      let storyboard = null;
+      for (let attempt = 0; attempt <= MAX_SCHEMA_RETRY; attempt++) {
+        const stageLabel = attempt === 0 ? 'generating_storyboard' : 'regenerating_storyboard';
+        await updateJob(jobId, 'running', {
+          percentage: attempt === 0 ? 30 : 32,
+          stage: stageLabel
+        });
+
+        storyboard = await qwenAdapter.generateStoryboard({
+          text: novelText,
+          jsonSchema: storyboardSchema,
+          strictMode: true,
+          maxChunkLength: 8000,
+          existingCharacters: existingBible.characters || [],
+          existingScenes: existingBible.scenes || [],
+          chapterNumber
+        });
+
+        console.log(`[AnalyzeWorker] Storyboard generated (attempt ${attempt + 1})`);
+        console.log(`  - Panels: ${storyboard.panels.length}`);
+        console.log(`  - Characters: ${storyboard.characters.length}`);
+        console.log(`  - Scenes: ${storyboard.scenes ? storyboard.scenes.length : 0}`);
+
+        await updateJob(jobId, 'running', { percentage: 85, stage: 'validating' });
+        const valid = validateStoryboard(storyboard);
+
+        if (valid) {
+          console.log(`[AnalyzeWorker] ✅ Storyboard validated successfully (attempt ${attempt + 1})`);
+          break;
+        }
+
+        console.error(`[AnalyzeWorker] ❌ Storyboard validation failed (attempt ${attempt + 1})`);
         console.error('[AnalyzeWorker] Validation errors:', JSON.stringify(validateStoryboard.errors, null, 2));
         console.error('[AnalyzeWorker] Generated storyboard structure:', JSON.stringify({
           hasTitle: !!storyboard.title,
@@ -640,15 +650,15 @@ exports.handler = async (event) => {
           firstCharacter: storyboard.characters?.[0],
           firstScene: storyboard.scenes?.[0]
         }, null, 2));
-        
-        // Log the FULL storyboard for debugging
         console.error('[AnalyzeWorker] 📄 Full Generated Storyboard (for debugging):');
         console.error(JSON.stringify(storyboard, null, 2));
-        
-        throw new Error('Generated storyboard does not match schema');
+
+        if (attempt === MAX_SCHEMA_RETRY) {
+          throw new Error('Generated storyboard does not match schema');
+        }
+
+        console.warn('[AnalyzeWorker] Schema mismatch detected, forcing one more generation attempt');
       }
-      
-      console.log('[AnalyzeWorker] ✅ Storyboard validated successfully');
       
       // 5a. Save updated bible
       await updateJob(jobId, 'running', { percentage: 88, stage: 'saving_bible' });
