@@ -141,11 +141,7 @@ class ImagenAdapter {
     const url = `https://generativelanguage.googleapis.com/v1beta/models/${this.model}:generateContent?key=${this.apiKey}`;
 
     const body = {
-      contents,
-      generationConfig: {
-        responseModalities: ['Image'],
-        responseMimeType: 'image/png'
-      }
+      contents
     };
 
     const res = await this.fetch(url, {
@@ -312,11 +308,6 @@ class ImagenAdapter {
       }
     }
 
-    const generationConfig = {
-      responseMimeType: 'image/png',
-      responseModalities: ['Image']
-    };
-
     if (negativePrompt) {
       contents[0].parts.push({
         text: `Negative prompt: ${negativePrompt}`
@@ -324,8 +315,7 @@ class ImagenAdapter {
     }
 
     const body = {
-      contents,
-      generationConfig
+      contents
     };
 
     const res = await this.fetch(url, {
