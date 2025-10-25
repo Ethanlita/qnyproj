@@ -817,7 +817,11 @@ export function NovelDetailPage() {
     return Array.from(counts.entries()).map(([status, count]) => ({ status, count }));
   }, [panels]);
 
-  const referenceProgress = referenceJobState.job?.progress as
+  const referenceJob =
+    referenceJobState.status === 'processing' || referenceJobState.status === 'completed'
+      ? referenceJobState.job
+      : undefined;
+  const referenceProgress = referenceJob?.progress as
     | { total?: number; completed?: number; failed?: number }
     | undefined;
   const referenceCompleted = referenceProgress?.completed ?? 0;
