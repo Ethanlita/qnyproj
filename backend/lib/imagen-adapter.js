@@ -384,10 +384,6 @@ function buildInlineDataPart(base64Data, mimeType = 'image/png') {
     inline_data: {
       mime_type: mimeType,
       data: base64Data
-    },
-    inlineData: {
-      mimeType,
-      data: base64Data
     }
   };
 }
