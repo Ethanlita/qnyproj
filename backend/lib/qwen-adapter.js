@@ -435,8 +435,8 @@ class QwenAdapter {
             }
           },
           temperature: 0.3,
-          // 默认 8000 token 容量不足以承载整章内容，这里放宽到 64k（10 倍）
-          max_tokens: 64000
+          // 默认 8000 token 容量不足以承载整章内容，这里放宽到 32768（最大值）
+          max_tokens: 32768
         };
         
         this.log('\n⏳ Sending request to Qwen...');

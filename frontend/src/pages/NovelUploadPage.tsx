@@ -15,9 +15,11 @@ export function NovelUploadPage() {
   const [error, setError] = useState<string | null>(null);
   const [modal, setModal] = useState<{ novel: Novel; jobId?: string } | null>(null);
 
+  const textLimit = 6000;
+
   const isSubmitDisabled = useMemo(
-    () => uploading || !title.trim() || !text.trim(),
-    [uploading, title, text]
+    () => uploading || !title.trim() || !text.trim() || text.length > textLimit,
+    [uploading, title, text, textLimit]
   );
 
   const closeModal = () => setModal(null);
@@ -25,6 +27,11 @@ export function NovelUploadPage() {
   const handleUpload = async () => {
     if (!title.trim() || !text.trim()) {
       setError('请填写完整的作品标题与小说文本内容。');
+      return;
+    }
+
+    if (text.length > textLimit) {
+      setError(`单章字数请控制在 ${textLimit} 字以内。`);
       return;
     }
 
@@ -145,8 +152,8 @@ export function NovelUploadPage() {
             color: '#4b1d47'
           }}
         />
-        <small style={{ color: '#95508a' }}>
-          💡 小说正文为必填项，建议提前整理文本内容后再创建作品。
+        <small style={{ color: '#95508a', display: 'block', marginTop: '8px' }}>
+          💡 小说正文为必填项，每次请提交单个章节，控制在 {textLimit} 字以内；后续章节可在分析完成后继续追加。
         </small>
       </div>
 
