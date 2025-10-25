@@ -19,9 +19,11 @@ Module._initPaths();
 const { SQSClient, PurgeQueueCommand } = require('@aws-sdk/client-sqs');
 const { DynamoDBClient } = require('@aws-sdk/client-dynamodb');
 const { DynamoDBDocumentClient, ScanCommand, UpdateCommand } = require('@aws-sdk/lib-dynamodb');
+const { CloudFormationClient, DescribeStacksCommand, ListStackResourcesCommand } = require('@aws-sdk/client-cloudformation');
 
 const sqsClient = new SQSClient({});
 const dynamoClient = DynamoDBDocumentClient.from(new DynamoDBClient({}));
+const cloudFormationClient = new CloudFormationClient({});
 const shouldSkipPurge = process.argv.includes('--skip-purge');
 
 function parseArg(name) {
@@ -33,7 +35,7 @@ function parseArg(name) {
   return match.slice(prefix.length);
 }
 
-function resolveQueueUrls() {
+function resolveQueueUrlsFromArgs() {
   const fromArg = parseArg('queues');
   if (fromArg) {
     return fromArg.split(',').map((item) => item.trim()).filter(Boolean);
@@ -54,7 +56,7 @@ function resolveJobTypes() {
   if (process.env.TARGET_JOB_TYPES) {
     return process.env.TARGET_JOB_TYPES.split(',').map((item) => item.trim()).filter(Boolean);
   }
-  return ['analyze'];
+  return [];
 }
 
 async function purgeQueue(queueUrl) {
@@ -116,17 +118,32 @@ async function markJobsFailed(tableName, jobTypes) {
 }
 
 async function main() {
-  const queueUrls = resolveQueueUrls();
-  if (queueUrls.length === 0) {
-    throw new Error('未提供队列 URL（请设置 --queues 或环境变量 ANALYSIS_QUEUE_URL / REFERENCE_QUEUE_URL）');
-  }
-
-  const tableName = process.env.TABLE_NAME || process.env.COMIC_DATA_TABLE;
-  if (!tableName) {
-    throw new Error('缺少 TABLE_NAME 环境变量');
-  }
+  const stackName = parseArg('stack') || process.env.STACK_NAME || 'qnyproj-api';
+  let queueUrls = resolveQueueUrlsFromArgs();
+  let tableName = process.env.TABLE_NAME || process.env.COMIC_DATA_TABLE;
 
   const jobTypes = resolveJobTypes();
+
+  if (queueUrls.length === 0 || !tableName) {
+    console.log(`🔎 未提供完整上下文，正在从堆栈 ${stackName} 自动发现...`);
+    const context = await discoverStackContext(stackName);
+    if (queueUrls.length === 0) {
+      queueUrls = context.queueUrls;
+    }
+    if (!tableName) {
+      tableName = context.tableName;
+    }
+  }
+
+  if (!tableName) {
+    throw new Error('缺少 TABLE_NAME，且在堆栈输出中也未找到 ComicDataTableName');
+  }
+
+  if (!queueUrls || queueUrls.length === 0) {
+    throw new Error('未找到任何要清理的队列（请确认堆栈资源或参数）');
+  }
+
+  console.log(`📦 将对以下队列执行清理：\n${queueUrls.map((url) => `  - ${url}`).join('\n')}`);
 
   if (shouldSkipPurge) {
     console.log('⏭️  跳过 SQS Purge（--skip-purge 已启用）');
@@ -138,6 +155,39 @@ async function main() {
 
   const affected = await markJobsFailed(tableName, jobTypes);
   console.log(`✅ 已标记 ${affected} 个 Job 为 failed 状态。`);
+}
+
+async function discoverStackContext(stackName) {
+  const [stackData, resources] = await Promise.all([
+    cloudFormationClient.send(
+      new DescribeStacksCommand({
+        StackName: stackName
+      })
+    ),
+    cloudFormationClient.send(
+      new ListStackResourcesCommand({
+        StackName: stackName
+      })
+    )
+  ]);
+
+  const outputs = stackData.Stacks?.[0]?.Outputs || [];
+  const outputMap = outputs.reduce((acc, item) => {
+    if (item?.OutputKey) {
+      acc[item.OutputKey] = item.OutputValue;
+    }
+    return acc;
+  }, {});
+
+  const queueUrls = (resources.StackResourceSummaries || [])
+    .filter((resource) => resource.ResourceType === 'AWS::SQS::Queue')
+    .map((resource) => resource.PhysicalResourceId)
+    .filter(Boolean);
+
+  return {
+    tableName: outputMap.ComicDataTableName || null,
+    queueUrls
+  };
 }
 
 main().catch((error) => {
