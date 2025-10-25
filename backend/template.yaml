@@ -1247,6 +1247,51 @@ Resources:
                 uri:
                   Fn::Sub: arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${PanelsFunction.Arn}/invocations
                 payloadFormatVersion: '2.0'
+            patch:
+              summary: 更新面板文本内容
+              description: 编辑分镜的场景描述、机位、角色与对白等文本信息
+              tags:
+                - Panels
+              security:
+                - CognitoAuthorizer: []
+              parameters:
+                - name: panelId
+                  in: path
+                  required: true
+                  schema:
+                    type: string
+                    format: uuid
+              requestBody:
+                required: true
+                content:
+                  application/json:
+                    schema:
+                      $ref: '#/components/schemas/UpdatePanelRequest'
+              responses:
+                '200':
+                  description: 更新后的面板
+                  content:
+                    application/json:
+                      schema:
+                        $ref: '#/components/schemas/Panel'
+                '400':
+                  description: 请求参数错误
+                  content:
+                    application/json:
+                      schema:
+                        $ref: '#/components/schemas/Error'
+                '404':
+                  description: 面板不存在
+                  content:
+                    application/json:
+                      schema:
+                        $ref: '#/components/schemas/Error'
+              x-amazon-apigateway-integration:
+                type: aws_proxy
+                httpMethod: POST
+                uri:
+                  Fn::Sub: arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${PanelsFunction.Arn}/invocations
+                payloadFormatVersion: '2.0'
           /panels/{panelId}/edit:
             post:
               summary: 编辑面板
@@ -1826,61 +1871,59 @@ Resources:
                   type: integer
                   minimum: 0
                   description: 页内序号
-                content:
+                scene:
+                  type: string
+                  description: 场景描述
+                shotType:
+                  type: string
+                  enum:
+                    - close-up
+                    - medium
+                    - wide
+                    - extreme-wide
+                cameraAngle:
+                  type: string
+                  description: 相机角度
+                composition:
                   type: object
-                  properties:
-                    scene:
-                      type: string
-                      description: 场景描述
-                    shotType:
-                      type: string
-                      enum:
-                        - close-up
-                        - medium
-                        - wide
-                        - extreme-wide
-                    characters:
-                      type: array
-                      items:
-                        type: object
-                        properties:
-                          charId:
-                            type: string
-                            format: uuid
-                          configId:
-                            type: string
-                            format: uuid
-                            description: 使用的配置ID
-                          name:
-                            type: string
-                          pose:
-                            type: string
-                          expression:
-                            type: string
-                            enum:
-                              - neutral
-                              - happy
-                              - sad
-                              - angry
-                              - surprised
-                              - determined
-                              - fearful
-                    dialogue:
-                      type: array
-                      items:
-                        type: object
-                        properties:
-                          speaker:
-                            type: string
-                          text:
-                            type: string
-                          bubbleType:
-                            type: string
-                            enum:
-                              - speech
-                              - thought
-                              - narration
-                              - scream
+                  description: 构图信息
+                  additionalProperties: true
+                characters:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      charId:
+                        type: string
+                        format: uuid
+                      configId:
+                        type: string
+                        format: uuid
+                      name:
+                        type: string
+                      pose:
+                        type: string
+                      expression:
+                        type: string
+                dialogue:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      speaker:
+                        type: string
+                      text:
+                        type: string
+                      bubbleType:
+                        type: string
+                background:
+                  type: object
+                  description: 背景设定
+                  additionalProperties: true
+                atmosphere:
+                  type: object
+                  description: 氛围设定
+                  additionalProperties: true
                 visualPrompt:
                   type: string
                   description: Imagen prompt
@@ -1893,6 +1936,66 @@ Resources:
                     hd:
                       type: string
                       format: uri
+                imagesS3:
+                  type: object
+                  description: 面板图像在 S3 中的对象键
+                  additionalProperties:
+                    type: string
+            UpdatePanelRequest:
+              type: object
+              properties:
+                scene:
+                  type: string
+                  description: 场景描述
+                shotType:
+                  type: string
+                  description: 机位/景别
+                cameraAngle:
+                  type: string
+                  description: 相机角度
+                composition:
+                  type: object
+                  description: 构图信息
+                  additionalProperties: true
+                visualPrompt:
+                  type: string
+                  description: Imagen Prompt
+                characters:
+                  type: array
+                  description: 面板涉及的角色
+                  items:
+                    type: object
+                    properties:
+                      charId:
+                        type: string
+                      configId:
+                        type: string
+                      name:
+                        type: string
+                      pose:
+                        type: string
+                      expression:
+                        type: string
+                dialogue:
+                  type: array
+                  description: 面板对白
+                  items:
+                    type: object
+                    properties:
+                      speaker:
+                        type: string
+                      text:
+                        type: string
+                      bubbleType:
+                        type: string
+                background:
+                  type: object
+                  description: 背景设定
+                  additionalProperties: true
+                atmosphere:
+                  type: object
+                  description: 氛围设定
+                  additionalProperties: true
             Job:
               type: object
               required:
