@@ -28,6 +28,7 @@ const sqsClient = new SQSClient({});
 // Environment variables
 const TABLE_NAME = process.env.TABLE_NAME;
 const ANALYSIS_QUEUE_URL = process.env.ANALYSIS_QUEUE_URL;
+const CHAPTER_TEXT_LIMIT = 8000;
 
 /**
  * Verify that the novel exists in DynamoDB
@@ -56,9 +57,10 @@ async function verifyNovelExists(novelId) {
 /**
  * Create Job item in DynamoDB (status: queued)
  */
-async function createJob(novelId, userId, type = 'analyze') {
+async function createJob(novelId, userId, type = 'analyze', options = {}) {
   const jobId = uuid();
   const timestamp = Date.now();
+  const chapterNumber = Number.isFinite(options.chapterNumber) ? options.chapterNumber : 1;
   
   const jobItem = {
     PK: `JOB#${jobId}`,
@@ -73,6 +75,9 @@ async function createJob(novelId, userId, type = 'analyze') {
     status: 'queued',  // Changed from 'running' to 'queued'
     novelId,
     userId,
+    chapterNumber,
+    chapterMode: options.chapterMode || 'full',
+    chapterTitle: options.chapterTitle || null,
     progress: {
       percentage: 0,
       stage: 'queued',
@@ -96,7 +101,7 @@ async function createJob(novelId, userId, type = 'analyze') {
 /**
  * Send message to SQS for async processing
  */
-async function sendToSQS(jobId, novelId, userId) {
+async function sendToSQS(jobId, novelId, userId, extra = {}) {
   if (!ANALYSIS_QUEUE_URL) {
     throw new Error('ANALYSIS_QUEUE_URL environment variable not set');
   }
@@ -105,25 +110,35 @@ async function sendToSQS(jobId, novelId, userId) {
     jobId,
     novelId,
     userId,
-    timestamp: Date.now()
+    timestamp: Date.now(),
+    chapterNumber: extra.chapterNumber,
+    chapterTitle: extra.chapterTitle,
+    text: extra.text
   };
   
   console.log(`[AnalyzeNovel] Sending message to SQS: ${JSON.stringify(message)}`);
+  const messageAttributes = {
+    jobId: {
+      DataType: 'String',
+      StringValue: jobId
+    },
+    novelId: {
+      DataType: 'String',
+      StringValue: novelId
+    }
+  };
+  if (extra.chapterNumber) {
+    messageAttributes.chapterNumber = {
+      DataType: 'Number',
+      StringValue: String(extra.chapterNumber)
+    };
+  }
   
   await sqsClient.send(
     new SendMessageCommand({
       QueueUrl: ANALYSIS_QUEUE_URL,
       MessageBody: JSON.stringify(message),
-      MessageAttributes: {
-        jobId: {
-          DataType: 'String',
-          StringValue: jobId
-        },
-        novelId: {
-          DataType: 'String',
-          StringValue: novelId
-        }
-      }
+      MessageAttributes: messageAttributes
     })
   );
   
@@ -170,16 +185,35 @@ exports.handler = async (event) => {
       return errorResponse(401, 'Unauthorized');
     }
     
+    const body = parseJsonBody(event.body);
+    const chapterInput = normalizeChapterPayload(body?.chapter);
+    const isNewChapter = Boolean(chapterInput.text);
+    if (isNewChapter && chapterInput.text.length === 0) {
+      return errorResponse(400, 'Chapter text cannot be empty');
+    }
+    if (chapterInput.text && chapterInput.text.length > CHAPTER_TEXT_LIMIT) {
+      return errorResponse(400, `Chapter text too long (limit ${CHAPTER_TEXT_LIMIT} characters)`);
+    }
+    
     console.log(`[AnalyzeNovel] Creating analysis task for novel ${novelId}, user ${userId}`);
     
     // Step 1: Verify novel exists (fail fast)
-    await verifyNovelExists(novelId);
+    const novelRecord = await verifyNovelExists(novelId);
+    const chapterNumber = resolveChapterNumber(novelRecord, chapterInput, isNewChapter);
     
     // Step 2: Create job with status 'queued'
-    const jobId = await createJob(novelId, userId, 'analyze');
+    const jobId = await createJob(novelId, userId, 'analyze', {
+      chapterNumber,
+      chapterMode: isNewChapter ? 'append' : 'full',
+      chapterTitle: chapterInput.title
+    });
     
     // Step 3: Send to SQS for async processing
-    await sendToSQS(jobId, novelId, userId);
+    await sendToSQS(jobId, novelId, userId, {
+      chapterNumber,
+      text: isNewChapter ? chapterInput.text : undefined,
+      chapterTitle: chapterInput.title
+    });
     
     console.log(`[AnalyzeNovel] Successfully queued analysis task, jobId: ${jobId}`);
     
@@ -197,4 +231,41 @@ exports.handler = async (event) => {
   }
 };
 
+function parseJsonBody(body) {
+  if (!body) {
+    return {};
+  }
+  try {
+    return JSON.parse(body);
+  } catch (error) {
+    console.warn('[AnalyzeNovel] Failed to parse request body, ignoring payload');
+    return {};
+  }
+}
 
+function normalizeChapterPayload(raw) {
+  if (!raw || typeof raw !== 'object') {
+    return { text: null, number: null, title: null };
+  }
+
+  const text = typeof raw.text === 'string' ? raw.text.trim() : null;
+  const parsedNumber = raw.number !== undefined ? Number(raw.number) : null;
+  const number =
+    Number.isFinite(parsedNumber) && parsedNumber > 0 ? Math.floor(parsedNumber) : null;
+  const title = typeof raw.title === 'string' && raw.title.trim().length > 0 ? raw.title.trim() : null;
+
+  return { text, number, title };
+}
+
+function resolveChapterNumber(novelRecord, chapterInput, isNewChapter) {
+  if (chapterInput?.number) {
+    return chapterInput.number;
+  }
+  if (isNewChapter) {
+    const currentCount = Number.isFinite(novelRecord.chapterCount)
+      ? novelRecord.chapterCount
+      : 0;
+    return currentCount + 1;
+  }
+  return 1;
+}

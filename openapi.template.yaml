@@ -250,6 +250,22 @@ paths:
             schema:
               type: object
               properties:
+                chapter:
+                  type: object
+                  description: 追加章节时提供的内容
+                  required:
+                    - text
+                  properties:
+                    number:
+                      type: integer
+                      minimum: 1
+                      description: 指定章节编号，不填则自动递增
+                    title:
+                      type: string
+                      description: 章节标题（可选）
+                    text:
+                      type: string
+                      description: 新章节的正文内容，提交后将复用现有圣经生成分镜
                 options:
                   type: object
                   properties:
@@ -1395,6 +1411,10 @@ components:
               type: array
               items:
                 type: string
+        chapterCount:
+          type: integer
+          minimum: 0
+          description: 已生成的章节数量
         createdAt:
           type: string
           format: date-time
@@ -1572,6 +1592,10 @@ components:
         novelId:
           type: string
           format: uuid
+        chapterNumber:
+          type: integer
+          minimum: 1
+          description: 分镜所属章节编号
         version:
           type: integer
           minimum: 1
@@ -1599,6 +1623,9 @@ components:
         storyboardId:
           type: string
           format: uuid
+        chapterNumber:
+          type: integer
+          description: 所属章节编号
         page:
           type: integer
           minimum: 1
@@ -1702,6 +1729,10 @@ components:
         mode:
           type: string
           description: 适用于生成任务的模式 (preview 或 hd)
+        chapterNumber:
+          type: integer
+          minimum: 1
+          description: 对于分析/分镜任务，表示本次生成的章节编号
         status:
           type: string
           enum:

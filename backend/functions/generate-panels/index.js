@@ -71,18 +71,20 @@ exports.handler = async (event) => {
     }
 
     const panels = await loadPanels(storyboardId);
-
-  let bibleVersion = null;
-  try {
-    const bible = await getBibleManager().getBible(novelId);
-    if (bible.exists) {
-      bibleVersion = bible.version;
-    }
-  } catch (error) {
-    console.warn('[GeneratePanels] Unable to load bible version', error);
-  }
     if (panels.length === 0) {
       return errorResponse(404, `Storyboard ${storyboardId} not found or has no panels`);
+    }
+
+    const novelId = panels[0].novelId;
+    const chapterNumber = panels[0].chapterNumber;
+    let bibleVersion = null;
+    try {
+      const bible = await getBibleManager().getBible(novelId);
+      if (bible.exists) {
+        bibleVersion = bible.version;
+      }
+    } catch (error) {
+      console.warn('[GeneratePanels] Unable to load bible version', error);
     }
 
     // ⭐ 问题 4 修复: 幂等性检查（防止重复生成）
@@ -98,7 +100,6 @@ exports.handler = async (event) => {
       });
     }
 
-    const novelId = panels[0].novelId;
     const timestamp = new Date().toISOString();
     const timestampNumber = Date.now();
 
@@ -112,6 +113,7 @@ exports.handler = async (event) => {
       mode,
       storyboardId,
       novelId,
+      chapterNumber,
       userId,
       bibleVersion,
       progress: {

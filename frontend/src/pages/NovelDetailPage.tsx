@@ -103,6 +103,10 @@ export function NovelDetailPage() {
   const [analysisPending, setAnalysisPending] = useState(false);
   const [generatingMode, setGeneratingMode] = useState<'preview' | 'hd'>('preview');
   const [panelError, setPanelError] = useState<string | null>(null);
+  const [chapterText, setChapterText] = useState('');
+  const [chapterNumberOverride, setChapterNumberOverride] = useState('');
+  const [addingChapter, setAddingChapter] = useState(false);
+  const [chapterError, setChapterError] = useState<string | null>(null);
 
   const [crInput, setCrInput] = useState('把第 1 页第 1 个面板中的主角表情改为微笑');
   const [crDsl, setCrDsl] = useState<CRDSL | null>(null);
@@ -327,6 +331,43 @@ export function NovelDetailPage() {
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       setPanelError(message);
+    }
+  };
+
+  const handleAddChapterSubmit = async () => {
+    if (!novelId) return;
+    const text = chapterText.trim();
+    if (!text) {
+      setChapterError('请输入章节文本');
+      return;
+    }
+    const parsed = Number(chapterNumberOverride.trim());
+    const targetChapter =
+      Number.isFinite(parsed) && parsed > 0 ? Math.floor(parsed) : nextChapterNumber;
+
+    setAddingChapter(true);
+    setChapterError(null);
+    try {
+      const response = await NovelsService.postNovelsAnalyze({
+        id: novelId,
+        requestBody: {
+          chapter: {
+            number: targetChapter,
+            text
+          }
+        }
+      });
+      if (response.jobId) {
+        stashJob(response.jobId);
+        startAnalyzeJob(response.jobId);
+        setChapterText('');
+        setChapterNumberOverride('');
+      }
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      setChapterError(message);
+    } finally {
+      setAddingChapter(false);
     }
   };
 
@@ -752,6 +793,20 @@ export function NovelDetailPage() {
     return Array.from(counts.entries()).map(([status, count]) => ({ status, count }));
   }, [panels]);
 
+  const nextChapterNumber = useMemo(() => {
+    const override = chapterNumberOverride.trim();
+    if (override.length > 0) {
+      const parsed = Number(override);
+      if (Number.isFinite(parsed) && parsed > 0) {
+        return Math.floor(parsed);
+      }
+    }
+    const novelCount = typeof novel?.chapterCount === 'number' ? novel.chapterCount : undefined;
+    const bibleChapter = typeof bible?.metadata?.lastChapter === 'number' ? bible?.metadata?.lastChapter : undefined;
+    const baseline = (novelCount && novelCount > 0 ? novelCount : bibleChapter) ?? 0;
+    return baseline + 1;
+  }, [chapterNumberOverride, novel?.chapterCount, bible?.metadata?.lastChapter]);
+
   if (loading) {
     return <div className={styles.page}>加载中...</div>;
   }
@@ -784,6 +839,8 @@ export function NovelDetailPage() {
             {novel.metadata?.genre && <span>类型：{novel.metadata.genre}</span>}
             <span>作品 ID：{novel.id}</span>
             {novel.storyboardId && <span>分镜：{novel.storyboardId}</span>}
+            {storyboard?.chapterNumber && <span>当前分镜章节：第 {storyboard.chapterNumber} 章</span>}
+            <span>章节：{novel.chapterCount ?? bible?.metadata?.lastChapter ?? 0}</span>
           </div>
         </div>
         <div className={styles.headerActions}>
@@ -806,6 +863,50 @@ export function NovelDetailPage() {
       </section>
 
       <section className={styles.grid}>
+        <article className={styles.card}>
+          <header>
+            <h2>追加新章节</h2>
+            <span>复用当前圣经，保持角色/场景连续性</span>
+          </header>
+          <div className={styles.fieldGroup}>
+            <label htmlFor="chapter-number" className={styles.fieldLabel}>目标章节</label>
+            <input
+              id="chapter-number"
+              type="number"
+              min={1}
+              placeholder={`默认 ${nextChapterNumber}`}
+              value={chapterNumberOverride}
+              onChange={(event) => setChapterNumberOverride(event.target.value)}
+            />
+            <small className={styles.helperText}>当前已完成 {novel.chapterCount ?? bible?.metadata?.lastChapter ?? 0} 章，默认生成第 {nextChapterNumber} 章</small>
+          </div>
+          <div className={styles.fieldGroup}>
+            <label htmlFor="chapter-text" className={styles.fieldLabel}>章节文本</label>
+            <textarea
+              id="chapter-text"
+              rows={5}
+              value={chapterText}
+              onChange={(event) => setChapterText(event.target.value)}
+              placeholder="粘贴新增章节文本，建议 6k 字以内"
+            />
+          </div>
+          {chapterError && <div className={styles.errorBox}>⚠️ {chapterError}</div>}
+          <div className={styles.cardActions}>
+            <button
+              type="button"
+              className={styles.primaryButton}
+              onClick={handleAddChapterSubmit}
+              disabled={addingChapter || chapterText.trim().length === 0}
+            >
+              {addingChapter ? '提交中...' : `生成第 ${nextChapterNumber} 章`}
+            </button>
+            <JobStatusLabel label="分析任务" jobState={analyzeJobState} />
+          </div>
+          <p className={styles.helperText}>
+            系统会沿用当前角色/场景圣经生成新的分镜，生成后可在圣经面板中替换参考图。
+          </p>
+        </article>
+
         <article className={styles.card}>
           <header>
             <h2>面板批量生成</h2>

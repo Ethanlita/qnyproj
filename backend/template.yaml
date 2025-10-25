@@ -2814,9 +2814,13 @@ Resources:
           TABLE_NAME: !Ref ComicDataTable
           ASSETS_BUCKET: !Ref AssetsBucket
           ENVIRONMENT: !Ref Environment
+          BIBLES_TABLE_NAME: !Ref BiblesTable
+          BIBLES_BUCKET: !Ref AssetsBucket
       Policies:
         - DynamoDBCrudPolicy:
             TableName: !Ref ComicDataTable
+        - DynamoDBReadPolicy:
+            TableName: !Ref BiblesTable
         - S3CrudPolicy:
             BucketName: !Ref AssetsBucket
       Events:
@@ -2871,9 +2875,13 @@ Resources:
           ASSETS_BUCKET: !Ref AssetsBucket
           ENVIRONMENT: !Ref Environment
           QWEN_SECRET_ARN: !Ref QwenApiKeySecret
+          BIBLES_TABLE_NAME: !Ref BiblesTable
+          BIBLES_BUCKET: !Ref AssetsBucket
       Policies:
         - DynamoDBCrudPolicy:
             TableName: !Ref ComicDataTable
+        - DynamoDBReadPolicy:
+            TableName: !Ref BiblesTable
         - S3CrudPolicy:
             BucketName: !Ref AssetsBucket
         # ⭐ 修复 1: 添加 S3 对象标签权限（uploadImage 需要）
@@ -2935,6 +2943,12 @@ Resources:
             TableName: !Ref BiblesTable
         - S3CrudPolicy:
             BucketName: !Ref AssetsBucket
+        - Statement:
+            - Effect: Allow
+              Action:
+                - s3:PutObjectTagging
+                - s3:GetObjectTagging
+              Resource: !Sub 'arn:aws:s3:::${AssetsBucket}/*'
         - Statement:
             - Effect: Allow
               Action:

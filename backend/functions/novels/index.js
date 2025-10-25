@@ -138,6 +138,7 @@ async function handleCreateNovel(event, userId) {
     status: 'created',
     storyboardId: null,
     metadata: sanitizeMetadata(metadata),
+    chapterCount: 0,
     createdAt: timestamp,
     updatedAt: timestamp,
     GSI1PK: `USER#${userId}`,
@@ -220,6 +221,7 @@ function deserializeNovel(item) {
     originalTextS3: item.originalTextS3 || undefined,
     userId: item.userId,
     metadata: item.metadata || {},
+    chapterCount: typeof item.chapterCount === 'number' ? item.chapterCount : 0,
     createdAt: toIsoString(item.createdAt),
     updatedAt: toIsoString(item.updatedAt)
   };

@@ -257,7 +257,7 @@ class ImagenAdapter {
       throw new Error('ImagenAdapter.generate requires a prompt');
     }
 
-    const url = `${this.baseUrl}/v1beta/models/${this.model}:generateImages?key=${this.apiKey}`;
+    const url = `${this.baseUrl}/v1beta/models/${this.model}:generateContent?key=${this.apiKey}`;
     
     // Build contents array: text prompt + reference images
     const contents = [
@@ -316,24 +316,36 @@ class ImagenAdapter {
           ? { width: 512, height: 288 }
           : null);
 
-    const body = {
-      contents,
-      generationConfig: {
-        aspectRatio,
-        negativePrompt,
-        outputMimeType: 'image/png'
-      }
+    const generationConfig = {
+      responseMimeType: 'image/png',
+      responseModalities: ['Image'],
+      ...(negativePrompt
+        ? {
+            negativePrompt: {
+              text: negativePrompt
+            }
+          }
+        : {})
     };
 
-    if (outputSize) {
-      body.generationConfig.outputOptions = {
-        ...(body.generationConfig.outputOptions || {}),
-        size: {
+    const hasOutputOptions = Boolean(aspectRatio || outputSize);
+    if (hasOutputOptions) {
+      generationConfig.outputOptions = {};
+      if (aspectRatio) {
+        generationConfig.outputOptions.aspectRatio = aspectRatio;
+      }
+      if (outputSize) {
+        generationConfig.outputOptions.size = {
           widthPixels: outputSize.width,
           heightPixels: outputSize.height
-        }
-      };
+        };
+      }
     }
+
+    const body = {
+      contents,
+      generationConfig
+    };
 
     const res = await this.fetch(url, {
       method: 'POST',
@@ -349,21 +361,18 @@ class ImagenAdapter {
     }
 
     const payload = await res.json();
-    const image = payload?.images?.[0]?.image || payload?.generatedImages?.[0];
-    if (!image) {
-      return null;
-    }
-
-    const base64 = image.bytesBase64Encoded || image.base64;
-    if (!base64) {
+    const candidate = payload?.candidates?.[0];
+    const part = candidate?.content?.parts?.find((p) => p.inline_data);
+    const inline = part?.inline_data;
+    if (!inline?.data) {
       return null;
     }
 
     return {
-      buffer: Buffer.from(base64, 'base64'),
-      mimeType: image.mimeType || 'image/png',
-      safetyAttributes: image.safetyAttributes || payload?.safetyInfo,
-      requestId: payload?.requestId || `gemini-${Date.now()}`
+      buffer: Buffer.from(inline.data, 'base64'),
+      mimeType: inline.mime_type || 'image/png',
+      safetyAttributes: candidate?.safetyRatings || payload?.safetyInfo,
+      requestId: payload?.responseId || payload?.requestId || `gemini-${Date.now()}`
     };
   }
 }

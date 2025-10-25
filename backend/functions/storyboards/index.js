@@ -57,6 +57,7 @@ exports.handler = async (event) => {
           id: panel.id,
           storyboardId,
           novelId,
+          chapterNumber: panel.chapterNumber,
           page: panel.page,
           index: panel.index,
           scene: panel.scene,
@@ -76,6 +77,7 @@ exports.handler = async (event) => {
     return successResponse({
       id: storyboardId,
       novelId,
+      chapterNumber: storyboardMeta?.chapterNumber,
       totalPages: storyboardMeta?.totalPages || estimatePages(responsePanels),
       panelCount: responsePanels.length,
       status: storyboardMeta?.status || 'generated',

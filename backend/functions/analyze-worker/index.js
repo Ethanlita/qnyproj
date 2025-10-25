@@ -191,10 +191,11 @@ async function updateJob(jobId, status, progress = {}, errorMessage = null) {
 /**
  * Write storyboard data to DynamoDB
  */
-async function writeStoryboardToDynamoDB(novelId, userId, storyboard) {
+async function writeStoryboardToDynamoDB(novelId, userId, storyboard, options = {}) {
   const storyboardId = uuid();
   const timestamp = new Date().toISOString();
   const timestampNumber = Date.now();
+  const chapterNumber = Number.isFinite(options.chapterNumber) ? options.chapterNumber : 1;
 
   console.log('[AnalyzeWorker] Writing storyboard to DynamoDB');
   console.log(`  - Panels: ${storyboard.panels.length}`);
@@ -212,6 +213,7 @@ async function writeStoryboardToDynamoDB(novelId, userId, storyboard) {
     totalCharacters: storyboard.characters.length,
     totalScenes: storyboard.scenes ? storyboard.scenes.length : 0,
     status: 'generated',
+    chapterNumber,
     createdAt: timestamp,
     updatedAt: timestamp,
     GSI1PK: `USER#${userId}`,
@@ -237,7 +239,8 @@ async function writeStoryboardToDynamoDB(novelId, userId, storyboard) {
     storyboardId,
     novelId,
     timestamp,
-    characterLookup
+    characterLookup,
+    chapterNumber
   );
 
   const allCharacterItems = mergeCharacterItems(baseCharacterItems, additionalCharacters);
@@ -312,6 +315,29 @@ async function writeStoryboardToDynamoDB(novelId, userId, storyboard) {
     })
   );
 
+  if (Number.isFinite(chapterNumber)) {
+    try {
+      await docClient.send(
+        new UpdateCommand({
+          TableName: TABLE_NAME,
+          Key: {
+            PK: `NOVEL#${novelId}`,
+            SK: `NOVEL#${novelId}`
+          },
+          UpdateExpression: 'SET chapterCount = :chapterNumber',
+          ConditionExpression: 'attribute_not_exists(chapterCount) OR chapterCount < :chapterNumber',
+          ExpressionAttributeValues: {
+            ':chapterNumber': chapterNumber
+          }
+        })
+      );
+    } catch (error) {
+      if (error.name !== 'ConditionalCheckFailedException') {
+        throw error;
+      }
+    }
+  }
+
   console.log('[AnalyzeWorker] Novel updated with storyboard reference');
 
   return { storyboardId };
@@ -346,7 +372,7 @@ function mergeCharacterItems(baseItems, additionalItems) {
   return Array.from(map.values());
 }
 
-function buildPanelItems(panels, storyboardId, novelId, timestamp, characterLookup) {
+function buildPanelItems(panels, storyboardId, novelId, timestamp, characterLookup, chapterNumber) {
   const items = [];
   const additionalCharacters = [];
 
@@ -370,6 +396,7 @@ function buildPanelItems(panels, storyboardId, novelId, timestamp, characterLook
       id: panelId,
       storyboardId,
       novelId,
+      chapterNumber,
       ...rest,
       characters: normalisedCharacters,
       dialogue,
@@ -686,13 +713,16 @@ exports.handler = async (event) => {
       
       // 6. Write to DynamoDB
       await updateJob(jobId, 'running', { percentage: 90, stage: 'writing_database' });
-      const { storyboardId } = await writeStoryboardToDynamoDB(novelId, userId, storyboard);
+      const { storyboardId } = await writeStoryboardToDynamoDB(novelId, userId, storyboard, {
+        chapterNumber
+      });
       
       // 7. Mark job as completed
       await updateJob(jobId, 'completed', {
         percentage: 100,
         stage: 'completed',
         storyboardId,
+        chapterNumber,
         panelCount: storyboard.panels.length,
         characterCount: storyboard.characters.length,
         sceneCount: storyboard.scenes ? storyboard.scenes.length : 0
@@ -735,8 +765,7 @@ async function enqueueReferenceImageJobs(bibleResult, novelId, userId) {
   const characters = (bibleResult.characters || []).filter((char) => !hasReferenceImage(char));
   const scenes = (bibleResult.scenes || []).filter((scene) => !hasReferenceImage(scene));
 
-  const MAX_PER_TYPE = 5;
-  characters.slice(0, MAX_PER_TYPE).forEach((character) => {
+  characters.forEach((character) => {
     messages.push({
       type: 'character',
       novelId,
@@ -746,7 +775,9 @@ async function enqueueReferenceImageJobs(bibleResult, novelId, userId) {
       requestedAt: now
     });
   });
-  scenes.slice(0, MAX_PER_TYPE).forEach((scene) => {
+
+  const MAX_SCENE_AUTOGEN = 5;
+  scenes.slice(0, MAX_SCENE_AUTOGEN).forEach((scene) => {
     messages.push({
       type: 'scene',
       novelId,
@@ -761,6 +792,10 @@ async function enqueueReferenceImageJobs(bibleResult, novelId, userId) {
     console.log('[AnalyzeWorker] All bible entries already have reference images, skip auto generation');
     return;
   }
+
+  console.log(
+    `[AnalyzeWorker] Enqueueing ${characters.length} character and ${Math.min(scenes.length, MAX_SCENE_AUTOGEN)} scene reference jobs`
+  );
 
   for (let i = 0; i < messages.length; i += 10) {
     const batch = messages.slice(i, i + 10);
