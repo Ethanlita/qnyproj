@@ -3067,7 +3067,6 @@ Resources:
           TABLE_NAME: !Ref ComicDataTable
           ASSETS_BUCKET: !Ref AssetsBucket
           ENVIRONMENT: !Ref Environment
-          EXPORT_QUEUE_URL: !Ref ExportQueue
       Policies:
         - DynamoDBCrudPolicy:
             TableName: !Ref ComicDataTable
@@ -3240,6 +3239,7 @@ Resources:
           TABLE_NAME: !Ref ComicDataTable
           ASSETS_BUCKET: !Ref AssetsBucket
           ENVIRONMENT: !Ref Environment
+          EXPORT_QUEUE_URL: !Ref ExportQueue
       Policies:
         - DynamoDBCrudPolicy:
             TableName: !Ref ComicDataTable
