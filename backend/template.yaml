@@ -291,16 +291,18 @@ Resources:
       GatewayResponses:
         DEFAULT_4XX:
           ResponseParameters:
-            gatewayresponse.header.Access-Control-Allow-Origin: "'https://ethanlita.github.io'"
-            gatewayresponse.header.Access-Control-Allow-Headers: "'Content-Type,Authorization,X-Amz-Date,X-Api-Key'"
-            gatewayresponse.header.Access-Control-Allow-Methods: "'GET,POST,PUT,DELETE,PATCH,OPTIONS'"
-            gatewayresponse.header.Access-Control-Allow-Credentials: "'true'"
+            Headers:
+              Access-Control-Allow-Origin: "'https://ethanlita.github.io'"
+              Access-Control-Allow-Headers: "'Content-Type,Authorization,X-Amz-Date,X-Api-Key'"
+              Access-Control-Allow-Methods: "'GET,POST,PUT,DELETE,PATCH,OPTIONS'"
+              Access-Control-Allow-Credentials: "'true'"
         DEFAULT_5XX:
           ResponseParameters:
-            gatewayresponse.header.Access-Control-Allow-Origin: "'https://ethanlita.github.io'"
-            gatewayresponse.header.Access-Control-Allow-Headers: "'Content-Type,Authorization,X-Amz-Date,X-Api-Key'"
-            gatewayresponse.header.Access-Control-Allow-Methods: "'GET,POST,PUT,DELETE,PATCH,OPTIONS'"
-            gatewayresponse.header.Access-Control-Allow-Credentials: "'true'"
+            Headers:
+              Access-Control-Allow-Origin: "'https://ethanlita.github.io'"
+              Access-Control-Allow-Headers: "'Content-Type,Authorization,X-Amz-Date,X-Api-Key'"
+              Access-Control-Allow-Methods: "'GET,POST,PUT,DELETE,PATCH,OPTIONS'"
+              Access-Control-Allow-Credentials: "'true'"
       MethodSettings:
         - LoggingLevel: INFO
           MetricsEnabled: true
