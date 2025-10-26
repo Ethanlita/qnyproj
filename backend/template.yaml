@@ -2964,6 +2964,13 @@ Resources:
               Ref: MyApiGateway
             Path: /novels/{id}/storyboards
             Method: GET
+        StoryboardsFunctionEvent3:
+          Type: Api
+          Properties:
+            RestApiId:
+              Ref: MyApiGateway
+            Path: /novels/{id}/storyboards
+            Method: OPTIONS
   GeneratePanelsFunction:
     Type: AWS::Serverless::Function
     Properties:
