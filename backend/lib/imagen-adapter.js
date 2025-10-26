@@ -23,6 +23,8 @@ const PLACEHOLDER_IMAGE = Buffer.from(
   'base64'
 );
 
+const MIN_REFERENCE_BYTES = 10 * 1024; // Skip tiny placeholders
+
 class ImagenAdapter {
   /**
    * @param {object} [options]
@@ -292,6 +294,13 @@ class ImagenAdapter {
           
           // Only add if it looks like valid base64
           if (base64Data && base64Data.length > 100 && !base64Data.startsWith('s3://')) {
+            const approxBytes = Math.floor((base64Data.length * 3) / 4);
+            if (approxBytes < MIN_REFERENCE_BYTES) {
+              this.logger?.warn?.(
+                `[ImagenAdapter] Reference image #${i + 1} skipped because size ${approxBytes}B < ${MIN_REFERENCE_BYTES}B`
+              );
+              continue;
+            }
             contents[0].parts.push(buildInlineDataPart(base64Data));
             this.logger?.info?.(`[ImagenAdapter] Added reference image #${i + 1} (${base64Data.substring(0, 20)}...)`);
           }
