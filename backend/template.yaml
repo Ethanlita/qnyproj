@@ -3077,6 +3077,11 @@ Resources:
               Action:
                 - sqs:SendMessage
               Resource: !GetAtt ExportQueue.Arn
+        - Statement:
+            - Effect: Allow
+              Action:
+                - sqs:SendMessage
+              Resource: !GetAtt ExportQueue.Arn
       Events:
         PanelsFunctionEvent1:
           Type: Api
