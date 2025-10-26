@@ -3072,6 +3072,11 @@ Resources:
             TableName: !Ref ComicDataTable
         - S3CrudPolicy:
             BucketName: !Ref AssetsBucket
+        - Statement:
+            - Effect: Allow
+              Action:
+                - sqs:SendMessage
+              Resource: !GetAtt ExportQueue.Arn
       Events:
         PanelsFunctionEvent1:
           Type: Api
@@ -3245,6 +3250,12 @@ Resources:
             TableName: !Ref ComicDataTable
         - S3CrudPolicy:
             BucketName: !Ref AssetsBucket
+        - Statement:
+            - Effect: Allow
+              Action:
+                - sqs:SendMessage
+              Resource: !GetAtt ExportQueue.Arn
+
       Events:
         ExportFunctionEvent1:
           Type: Api
