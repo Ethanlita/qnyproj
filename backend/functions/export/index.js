@@ -98,7 +98,7 @@ async function handleCreateExport(event, userId) {
     return errorResponse(409, 'Storyboard not generated yet');
   }
 
-  const storyboard = await loadStoryboard(novel.storyboardId);
+  const storyboard = await loadStoryboard(novel.id, novel.storyboardId);
   if (!storyboard) {
     return errorResponse(404, `Storyboard ${novel.storyboardId} not found`);
   }
@@ -259,20 +259,35 @@ async function loadNovel(novelId) {
       }
     })
   );
-  return result.Item || null;
+  if (!result.Item) {
+    return null;
+  }
+  return {
+    ...result.Item,
+    id: result.Item.id || novelId
+  };
 }
 
-async function loadStoryboard(storyboardId) {
+async function loadStoryboard(novelId, storyboardId) {
+  if (!novelId || !storyboardId) {
+    return null;
+  }
   const result = await docClient.send(
     new GetCommand({
       TableName: TABLE_NAME,
       Key: {
-        PK: `STORYBOARD#${storyboardId}`,
+        PK: `NOVEL#${novelId}`,
         SK: `STORYBOARD#${storyboardId}`
       }
     })
   );
-  return result.Item || null;
+  if (!result.Item) {
+    return null;
+  }
+  return {
+    ...result.Item,
+    id: result.Item.id || storyboardId
+  };
 }
 
 async function loadPanels(storyboardId) {
@@ -336,7 +351,8 @@ async function updateJob(jobId, { status, progress, result, error }) {
     values[':progress'] = progress;
   }
   if (result) {
-    expressions.push('result = :result');
+    expressions.push('#result = :result');
+    names['#result'] = 'result';
     values[':result'] = result;
   }
   if (error) {
