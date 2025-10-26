@@ -1175,7 +1175,7 @@ Resources:
                 uri:
                   Fn::Sub: arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${GeneratePortraitFunction.Arn}/invocations
                 payloadFormatVersion: '2.0'
-          /novels/{novelId}/storyboards:
+          /novels/{id}/storyboards:
             get:
               summary: 列出作品的分镜章节
               description: 返回指定作品下所有已生成的分镜章节，按照章节编号排序
@@ -2933,7 +2933,7 @@ Resources:
           Properties:
             RestApiId:
               Ref: MyApiGateway
-            Path: /novels/{novelId}/storyboards
+            Path: /novels/{id}/storyboards
             Method: GET
   GeneratePanelsFunction:
     Type: AWS::Serverless::Function

@@ -37,7 +37,7 @@ exports.handler = async (event) => {
     }
 
     const { pathParameters = {} } = event;
-    const novelIdForList = pathParameters.novelId;
+    const novelIdForList = pathParameters.novelId ?? pathParameters.id;
 
     if (method === 'GET' && novelIdForList) {
       console.log(`[StoryboardsFunction] user=${userId} list novel=${novelIdForList}`);

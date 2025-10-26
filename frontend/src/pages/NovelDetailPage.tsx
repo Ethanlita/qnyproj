@@ -256,7 +256,7 @@ export function NovelDetailPage() {
     try {
       setChaptersLoading(true);
       setChaptersError(null);
-      const response = await StoryboardsService.getNovelsStoryboards({ novelId });
+      const response = await StoryboardsService.getNovelsStoryboards({ id: novelId });
       const sorted = [...(response.items ?? [])].sort((a, b) => {
         const left = a.chapterNumber ?? 0;
         const right = b.chapterNumber ?? 0;

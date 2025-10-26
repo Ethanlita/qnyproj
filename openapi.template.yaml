@@ -875,9 +875,9 @@ paths:
         uri:
           Fn::Sub: arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${GeneratePortraitFunction.Arn}/invocations
         payloadFormatVersion: "2.0"
-  /novels/{novelId}/storyboards:
+  /novels/{id}/storyboards:
     parameters:
-      - name: novelId
+      - name: id
         in: path
         required: true
         schema:
