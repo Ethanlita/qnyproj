@@ -434,9 +434,11 @@ async function persistExportRecord({ exportId, s3Key, size, jobId }) {
         SK: `EXPORT#${exportId}`
       },
       ConditionExpression: 'attribute_exists(PK)',
-      UpdateExpression: 'SET #status = :status, fileKey = :fileKey, fileSize = :fileSize, jobId = :jobId, updatedAt = :updatedAt, error = :error',
+      UpdateExpression:
+        'SET #status = :status, fileKey = :fileKey, fileSize = :fileSize, jobId = :jobId, updatedAt = :updatedAt, #error = :error',
       ExpressionAttributeNames: {
-        '#status': 'status'
+        '#status': 'status',
+        '#error': 'error'
       },
       ExpressionAttributeValues: {
         ':status': 'completed',
@@ -460,9 +462,10 @@ async function markExportRecordFailed({ exportId, jobId, error }) {
         SK: `EXPORT#${exportId}`
       },
       ConditionExpression: 'attribute_exists(PK)',
-      UpdateExpression: 'SET #status = :status, error = :error, jobId = :jobId, updatedAt = :updatedAt',
+      UpdateExpression: 'SET #status = :status, #error = :error, jobId = :jobId, updatedAt = :updatedAt',
       ExpressionAttributeNames: {
-        '#status': 'status'
+        '#status': 'status',
+        '#error': 'error'
       },
       ExpressionAttributeValues: {
         ':status': 'failed',
