@@ -915,6 +915,20 @@ paths:
         uri:
           Fn::Sub: arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${StoryboardsFunction.Arn}/invocations
         payloadFormatVersion: "2.0"
+    options:
+      summary: 章节列表 CORS 预检
+      tags:
+        - Storyboards
+      security: []
+      responses:
+        "200":
+          description: 预检通过
+      x-amazon-apigateway-integration:
+        type: aws_proxy
+        httpMethod: POST
+        uri:
+          Fn::Sub: arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${StoryboardsFunction.Arn}/invocations
+        payloadFormatVersion: "2.0"
   /storyboards/{id}:
     parameters:
       - name: id
