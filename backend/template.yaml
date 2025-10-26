@@ -2684,6 +2684,27 @@ Resources:
               Ref: MyApiGateway
             Path: /novels/{id}/bible/history
             Method: GET
+        BibleUploadRequest:
+          Type: Api
+          Properties:
+            RestApiId:
+              Ref: MyApiGateway
+            Path: /novels/{id}/bible/uploads
+            Method: POST
+        BiblePatchCharacter:
+          Type: Api
+          Properties:
+            RestApiId:
+              Ref: MyApiGateway
+            Path: /novels/{id}/bible/characters/{characterName}
+            Method: PATCH
+        BiblePatchScene:
+          Type: Api
+          Properties:
+            RestApiId:
+              Ref: MyApiGateway
+            Path: /novels/{id}/bible/scenes/{sceneId}
+            Method: PATCH
   
   CharactersFunction:
     Type: AWS::Serverless::Function
