@@ -1175,6 +1175,45 @@ Resources:
                 uri:
                   Fn::Sub: arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${GeneratePortraitFunction.Arn}/invocations
                 payloadFormatVersion: '2.0'
+          /novels/{novelId}/storyboards:
+            get:
+              summary: 列出作品的分镜章节
+              description: 返回指定作品下所有已生成的分镜章节，按照章节编号排序
+              tags:
+                - Storyboards
+              security:
+                - CognitoAuthorizer: []
+              parameters:
+                - name: novelId
+                  in: path
+                  required: true
+                  schema:
+                    type: string
+                    format: uuid
+              responses:
+                '200':
+                  description: 分镜列表
+                  content:
+                    application/json:
+                      schema:
+                        type: object
+                        properties:
+                          items:
+                            type: array
+                            items:
+                              $ref: '#/components/schemas/StoryboardSummary'
+                '401':
+                  description: 未授权
+                '403':
+                  description: 无权访问该作品
+                '404':
+                  description: 作品不存在
+              x-amazon-apigateway-integration:
+                type: aws_proxy
+                httpMethod: POST
+                uri:
+                  Fn::Sub: arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${StoryboardsFunction.Arn}/invocations
+                payloadFormatVersion: '2.0'
           /storyboards/{id}:
             get:
               summary: 获取分镜详情
