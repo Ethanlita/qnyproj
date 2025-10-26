@@ -1634,6 +1634,9 @@ function transformPanels(panels: PanelModel[]): PanelForDisplay[] {
       (legacyContent.dialogue as PanelModel['dialogue']) ||
       [];
 
+    const previewUrl = panel.images?.preview || panel.images?.hd || undefined;
+    const hdUrl = panel.images?.hd || panel.images?.preview || undefined;
+
     return {
       ...panel,
       scene,
@@ -1641,8 +1644,8 @@ function transformPanels(panels: PanelModel[]): PanelForDisplay[] {
       cameraAngle,
       characters,
       dialogue,
-      previewUrl: panel.images?.preview,
-      hdUrl: panel.images?.hd,
+      previewUrl,
+      hdUrl,
       status: typeof (panel as Record<string, unknown>).status === 'string'
         ? ((panel as Record<string, unknown>).status as string)
         : undefined
