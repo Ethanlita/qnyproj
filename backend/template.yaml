@@ -247,7 +247,7 @@ Resources:
           {"requestId":"$context.requestId","ip":"$context.identity.sourceIp","caller":"$context.identity.caller","user":"$context.identity.user","userAgent":"$context.identity.userAgent","requestTime":"$context.requestTime","httpMethod":"$context.httpMethod","resourcePath":"$context.resourcePath","status":"$context.status","authorizerError":"$context.authorizer.error","authorizerPrincipalId":"$context.authorizer.principalId","errorMessage":"$context.error.message","integrationStatus":"$context.integrationStatus","integrationError":"$context.integrationError"}
       Cors:
         AllowOrigin: "'https://ethanlita.github.io'"
-        AllowMethods: "'GET,POST,PUT,DELETE,OPTIONS'"
+        AllowMethods: "'GET,POST,PUT,DELETE,PATCH,OPTIONS'"
         AllowHeaders: "'Content-Type,Authorization,X-Amz-Date,X-Api-Key'"
         MaxAge: "'3600'"
         AllowCredentials: true
