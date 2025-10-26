@@ -7,19 +7,22 @@ const {
   PutCommand,
   UpdateCommand
 } = require('@aws-sdk/lib-dynamodb');
+const { SQSClient, SendMessageCommand } = require('@aws-sdk/client-sqs');
 const { PDFDocument, StandardFonts, rgb } = require('pdf-lib');
 const { PNG } = require('pngjs');
 const jpeg = require('jpeg-js');
 const { successResponse, errorResponse } = require('../../lib/response');
 const { getUserId } = require('../../lib/auth');
-const { s3Client, getPresignedUrl, uploadImage } = require('../../lib/s3-utils');
+const { s3Client, getPresignedUrl } = require('../../lib/s3-utils');
 const { v4: uuid } = require('uuid');
 
 const dynamoClient = new DynamoDBClient({});
 const docClient = DynamoDBDocumentClient.from(dynamoClient);
+const sqsClient = new SQSClient({});
 
 const TABLE_NAME = process.env.TABLE_NAME;
 const ASSETS_BUCKET = process.env.ASSETS_BUCKET;
+const EXPORT_QUEUE_URL = process.env.EXPORT_QUEUE_URL;
 
 const SUPPORTED_FORMATS = new Set(['pdf', 'webtoon', 'resources']);
 
@@ -108,6 +111,9 @@ async function handleCreateExport(event, userId) {
   }
 
   const panels = await loadPanels(storyboard.id);
+  if (!panels || panels.length === 0) {
+    return errorResponse(409, 'Storyboard does not have any panels yet');
+  }
 
   const exportId = uuid();
   const jobId = uuid();
@@ -121,80 +127,41 @@ async function handleCreateExport(event, userId) {
     storyboard,
     format,
     timestamp,
-    timestampNumber
+    timestampNumber,
+    initialStatus: 'queued'
   });
 
-  try {
-    const { buffer, filename, contentType } = await buildExportAsset({
-      format,
-      novel,
-      storyboard,
-      panels
-    });
+  await createQueuedExportRecord({
+    exportId,
+    novel,
+    storyboard,
+    format,
+    userId,
+    jobId,
+    timestamp,
+    timestampNumber,
+    panelCount: panels.length
+  });
 
-    const s3Key = `exports/${exportId}/${filename}`;
-    await uploadImage(s3Key, buffer, {
-      contentType,
-      metadata: {
-        'export-id': exportId,
-        format,
-        'novel-id': novel.id,
-        'storyboard-id': storyboard.id
-      }
-    });
+  await enqueueExportTask({
+    exportId,
+    jobId,
+    novelId: novel.id,
+    storyboardId: storyboard.id,
+    format,
+    userId
+  });
 
-    await persistExportRecord({
+  return successResponse(
+    {
       exportId,
-      novel,
-      storyboard,
-      format,
-      userId,
-      s3Key,
-      size: buffer.length,
       jobId,
-      timestamp,
-      timestampNumber
-    });
-
-    await updateJob(jobId, {
-      status: 'completed',
-      result: {
-        exportId,
-        format,
-        s3Key,
-        fileSize: buffer.length
-      },
-      progress: {
-        total: 1,
-        completed: 1,
-        failed: 0,
-        percentage: 100
-      }
-    });
-
-    return successResponse(
-      {
-        exportId,
-        jobId,
-        status: 'completed',
-        format
-      },
-      202
-    );
-  } catch (error) {
-    console.error('[Export] Failed to generate asset:', error);
-    await updateJob(jobId, {
-      status: 'failed',
-      error: error.message,
-      progress: {
-        total: 1,
-        completed: 0,
-        failed: 1,
-        percentage: 0
-      }
-    });
-    return errorResponse(500, `Failed to generate export: ${error.message}`);
-  }
+      status: 'queued',
+      format,
+      message: 'Export job enqueued. Use GET /jobs/{jobId} 或 GET /exports/{exportId} 查看进度。'
+    },
+    202
+  );
 }
 
 async function handleGetExport(exportId, userId) {
@@ -308,7 +275,16 @@ async function loadPanels(storyboardId) {
   return result.Items || [];
 }
 
-async function createExportJob({ jobId, userId, novel, storyboard, format, timestamp, timestampNumber }) {
+async function createExportJob({
+  jobId,
+  userId,
+  novel,
+  storyboard,
+  format,
+  timestamp,
+  timestampNumber,
+  initialStatus = 'queued'
+}) {
   await docClient.send(
     new PutCommand({
       TableName: TABLE_NAME,
@@ -317,7 +293,7 @@ async function createExportJob({ jobId, userId, novel, storyboard, format, times
         SK: `JOB#${jobId}`,
         id: jobId,
         type: `export_${format}`,
-        status: 'in_progress',
+        status: initialStatus,
         novelId: novel.id,
         storyboardId: storyboard.id,
         userId,
@@ -325,7 +301,12 @@ async function createExportJob({ jobId, userId, novel, storyboard, format, times
           total: 1,
           completed: 0,
           failed: 0,
-          percentage: 0
+          percentage: 0,
+          stage: initialStatus === 'queued' ? 'queued' : 'in_progress',
+          message:
+            initialStatus === 'queued'
+              ? '导出任务已排队，等待 ExportWorker 执行'
+              : '导出任务执行中'
         },
         createdAt: timestamp,
         updatedAt: timestamp,
@@ -333,6 +314,70 @@ async function createExportJob({ jobId, userId, novel, storyboard, format, times
         GSI1SK: `JOB#${timestampNumber}`,
         GSI2PK: `NOVEL#${novel.id}`,
         GSI2SK: timestampNumber
+      }
+    })
+  );
+}
+
+async function createQueuedExportRecord({
+  exportId,
+  novel,
+  storyboard,
+  format,
+  userId,
+  jobId,
+  timestamp,
+  timestampNumber,
+  panelCount
+}) {
+  await docClient.send(
+    new PutCommand({
+      TableName: TABLE_NAME,
+      Item: {
+        PK: `EXPORT#${exportId}`,
+        SK: `EXPORT#${exportId}`,
+        id: exportId,
+        novelId: novel.id,
+        storyboardId: storyboard.id,
+        userId,
+        format,
+        status: 'queued',
+        fileKey: null,
+        fileSize: null,
+        jobId,
+        panelCount,
+        createdAt: timestamp,
+        updatedAt: timestamp,
+        GSI1PK: `USER#${userId}`,
+        GSI1SK: `EXPORT#${timestampNumber}`,
+        GSI2PK: `NOVEL#${novel.id}`,
+        GSI2SK: timestampNumber
+      }
+    })
+  );
+}
+
+async function enqueueExportTask({ exportId, jobId, novelId, storyboardId, format, userId }) {
+  if (!EXPORT_QUEUE_URL) {
+    throw new Error('EXPORT_QUEUE_URL environment variable not set');
+  }
+  const payload = {
+    exportId,
+    jobId,
+    novelId,
+    storyboardId,
+    format,
+    userId,
+    enqueuedAt: Date.now()
+  };
+
+  await sqsClient.send(
+    new SendMessageCommand({
+      QueueUrl: EXPORT_QUEUE_URL,
+      MessageBody: JSON.stringify(payload),
+      MessageAttributes: {
+        exportId: { DataType: 'String', StringValue: exportId },
+        format: { DataType: 'String', StringValue: format }
       }
     })
   );
@@ -379,39 +424,51 @@ async function updateJob(jobId, { status, progress, result, error }) {
   );
 }
 
-async function persistExportRecord({
-  exportId,
-  novel,
-  storyboard,
-  format,
-  userId,
-  s3Key,
-  size,
-  jobId,
-  timestamp,
-  timestampNumber
-}) {
+async function persistExportRecord({ exportId, s3Key, size, jobId }) {
+  const timestamp = new Date().toISOString();
   await docClient.send(
-    new PutCommand({
+    new UpdateCommand({
       TableName: TABLE_NAME,
-      Item: {
+      Key: {
         PK: `EXPORT#${exportId}`,
-        SK: `EXPORT#${exportId}`,
-        id: exportId,
-        novelId: novel.id,
-        storyboardId: storyboard.id,
-        userId,
-        format,
-        status: 'completed',
-        fileKey: s3Key,
-        fileSize: size,
-        jobId,
-        createdAt: timestamp,
-        updatedAt: timestamp,
-        GSI1PK: `USER#${userId}`,
-        GSI1SK: `EXPORT#${timestampNumber}`,
-        GSI2PK: `NOVEL#${novel.id}`,
-        GSI2SK: timestampNumber
+        SK: `EXPORT#${exportId}`
+      },
+      ConditionExpression: 'attribute_exists(PK)',
+      UpdateExpression: 'SET #status = :status, fileKey = :fileKey, fileSize = :fileSize, jobId = :jobId, updatedAt = :updatedAt, error = :error',
+      ExpressionAttributeNames: {
+        '#status': 'status'
+      },
+      ExpressionAttributeValues: {
+        ':status': 'completed',
+        ':fileKey': s3Key,
+        ':fileSize': size,
+        ':jobId': jobId,
+        ':updatedAt': timestamp,
+        ':error': null
+      }
+    })
+  );
+}
+
+async function markExportRecordFailed({ exportId, jobId, error }) {
+  const timestamp = new Date().toISOString();
+  await docClient.send(
+    new UpdateCommand({
+      TableName: TABLE_NAME,
+      Key: {
+        PK: `EXPORT#${exportId}`,
+        SK: `EXPORT#${exportId}`
+      },
+      ConditionExpression: 'attribute_exists(PK)',
+      UpdateExpression: 'SET #status = :status, error = :error, jobId = :jobId, updatedAt = :updatedAt',
+      ExpressionAttributeNames: {
+        '#status': 'status'
+      },
+      ExpressionAttributeValues: {
+        ':status': 'failed',
+        ':error': error || '导出失败',
+        ':jobId': jobId,
+        ':updatedAt': timestamp
       }
     })
   );
@@ -1067,3 +1124,11 @@ const CRC_TABLE = (() => {
   }
   return table;
 })();
+
+exports.buildExportAsset = buildExportAsset;
+exports.loadNovel = loadNovel;
+exports.loadStoryboard = loadStoryboard;
+exports.loadPanels = loadPanels;
+exports.updateJob = updateJob;
+exports.persistExportRecord = persistExportRecord;
+exports.markExportRecordFailed = markExportRecordFailed;

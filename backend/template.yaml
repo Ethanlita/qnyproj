@@ -216,6 +216,36 @@ Resources:
     Properties:
       QueueName: !Sub '${AWS::StackName}-analysis-dlq'
       MessageRetentionPeriod: 1209600  # 14 days
+
+  ExportDeadLetterQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub '${AWS::StackName}-export-dlq'
+      MessageRetentionPeriod: 1209600
+
+  ExportQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub '${AWS::StackName}-export-queue'
+      VisibilityTimeout: 900
+      RedrivePolicy:
+        deadLetterTargetArn: !GetAtt ExportDeadLetterQueue.Arn
+        maxReceiveCount: 3
+
+  ChangeRequestDeadLetterQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub '${AWS::StackName}-change-request-dlq'
+      MessageRetentionPeriod: 1209600
+
+  ChangeRequestQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub '${AWS::StackName}-change-request-queue'
+      VisibilityTimeout: 900
+      RedrivePolicy:
+        deadLetterTargetArn: !GetAtt ChangeRequestDeadLetterQueue.Arn
+        maxReceiveCount: 3
       Tags:
         - Key: Environment
           Value: !Ref Environment
@@ -2623,6 +2653,7 @@ Resources:
           ASSETS_BUCKET: !Ref AssetsBucket
           ENVIRONMENT: !Ref Environment
           QWEN_SECRET_ARN: !Ref QwenApiKeySecret
+          CHANGE_REQUEST_QUEUE_URL: !Ref ChangeRequestQueue
           BIBLES_TABLE_NAME: !Ref BiblesTable
           BIBLES_BUCKET: !Ref AssetsBucket
           BIBLES_TABLE_NAME: !Ref BiblesTable
@@ -2642,6 +2673,11 @@ Resources:
               Action:
                 - secretsmanager:GetSecretValue
               Resource: !Ref QwenApiKeySecret
+        - Statement:
+            - Effect: Allow
+              Action:
+                - sqs:SendMessage
+              Resource: !GetAtt ChangeRequestQueue.Arn
       Events:
         SQSEvent:
           Type: SQS
@@ -3031,11 +3067,17 @@ Resources:
           TABLE_NAME: !Ref ComicDataTable
           ASSETS_BUCKET: !Ref AssetsBucket
           ENVIRONMENT: !Ref Environment
+          EXPORT_QUEUE_URL: !Ref ExportQueue
       Policies:
         - DynamoDBCrudPolicy:
             TableName: !Ref ComicDataTable
         - S3CrudPolicy:
             BucketName: !Ref AssetsBucket
+        - Statement:
+            - Effect: Allow
+              Action:
+                - sqs:SendMessage
+              Resource: !GetAtt ExportQueue.Arn
       Events:
         PanelsFunctionEvent1:
           Type: Api
@@ -3118,6 +3160,39 @@ Resources:
               Ref: MyApiGateway
             Path: /change-requests
             Method: POST
+
+  ChangeRequestWorkerFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: .
+      Handler: functions/change-request-worker/index.handler
+      Runtime: nodejs22.x
+      Architectures:
+        - x86_64
+      Timeout: 900
+      MemorySize: 1536
+      Environment:
+        Variables:
+          TABLE_NAME: !Ref ComicDataTable
+          ASSETS_BUCKET: !Ref AssetsBucket
+          ENVIRONMENT: !Ref Environment
+          QWEN_SECRET_ARN: !Ref QwenApiKeySecret
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref ComicDataTable
+        - S3CrudPolicy:
+            BucketName: !Ref AssetsBucket
+        - Statement:
+            - Effect: Allow
+              Action:
+                - secretsmanager:GetSecretValue
+              Resource: !Ref QwenApiKeySecret
+      Events:
+        ChangeRequestQueueEvent:
+          Type: SQS
+          Properties:
+            Queue: !GetAtt ChangeRequestQueue.Arn
+            BatchSize: 1
   JobsFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -3185,6 +3260,33 @@ Resources:
               Ref: MyApiGateway
             Path: /exports/{id}
             Method: GET
+
+  ExportWorkerFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: .
+      Handler: functions/export-worker/index.handler
+      Runtime: nodejs22.x
+      Architectures:
+        - x86_64
+      Timeout: 900
+      MemorySize: 1024
+      Environment:
+        Variables:
+          TABLE_NAME: !Ref ComicDataTable
+          ASSETS_BUCKET: !Ref AssetsBucket
+          ENVIRONMENT: !Ref Environment
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref ComicDataTable
+        - S3CrudPolicy:
+            BucketName: !Ref AssetsBucket
+      Events:
+        ExportQueueEvent:
+          Type: SQS
+          Properties:
+            Queue: !GetAtt ExportQueue.Arn
+            BatchSize: 1
 Outputs:
   ApiUrl:
     Description: API Gateway endpoint URL for Dev stage

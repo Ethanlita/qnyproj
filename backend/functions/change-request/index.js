@@ -6,6 +6,7 @@ const {
   QueryCommand,
   GetCommand
 } = require('@aws-sdk/lib-dynamodb');
+const { SQSClient, SendMessageCommand } = require('@aws-sdk/client-sqs');
 const { successResponse, errorResponse } = require('../../lib/response');
 const { getUserId } = require('../../lib/auth');
 const { getQwenConfig, getGeminiConfig } = require('../../lib/ai-secrets');
@@ -19,9 +20,11 @@ const CR_DSL_SCHEMA = require('../../schemas/cr-dsl.json');
 
 const dynamoClient = new DynamoDBClient({});
 const docClient = DynamoDBDocumentClient.from(dynamoClient);
+const sqsClient = new SQSClient({});
 
 const TABLE_NAME = process.env.TABLE_NAME;
 const ASSETS_BUCKET = process.env.ASSETS_BUCKET;
+const CHANGE_REQUEST_QUEUE_URL = process.env.CHANGE_REQUEST_QUEUE_URL;
 
 let qwenAdapterPromise = null;
 let imagenAdapterPromise = null;
@@ -57,53 +60,229 @@ exports.handler = async (event) => {
     if (!userId) {
       return errorResponse(401, 'Unauthorized');
     }
-    const body = JSON.parse(event.body || '{}');
-    const { novelId, naturalLanguage, context = {} } = body;
+    if (method !== 'POST') {
+      return errorResponse(405, 'Method not allowed');
+    }
 
-    if (!novelId) {
-      return errorResponse(400, 'novelId is required');
-    }
-    if (!naturalLanguage || typeof naturalLanguage !== 'string') {
-      return errorResponse(400, 'naturalLanguage is required');
-    }
+    return await enqueueChangeRequest(event, userId);
+  } catch (error) {
+    console.error('[ChangeRequest] Unexpected error:', error);
+    return errorResponse(500, error.message || 'Internal Server Error');
+  }
+};
+
+async function enqueueChangeRequest(event, userId) {
+  const body = JSON.parse(event.body || '{}');
+  const { novelId, naturalLanguage, context = {} } = body;
+
+  if (!novelId) {
+    return errorResponse(400, 'novelId is required');
+  }
+  if (!naturalLanguage || typeof naturalLanguage !== 'string') {
+    return errorResponse(400, 'naturalLanguage is required');
+  }
+
+  const novel = await loadNovel(novelId);
+  if (!novel) {
+    return errorResponse(404, `Novel ${novelId} not found`);
+  }
+  if (!novel.storyboardId) {
+    return errorResponse(409, 'Storyboard not generated yet. Run /novels/{id}/analyze first.');
+  }
+
+  const crId = uuid();
+  const jobId = uuid();
+  const timestamp = new Date().toISOString();
+  const timestampNumber = Date.now();
+
+  await createChangeRequestRecord({
+    crId,
+    novelId,
+    storyboardId: novel.storyboardId,
+    naturalLanguage,
+    userId,
+    context,
+    timestamp,
+    timestampNumber
+  });
+
+  await createChangeRequestJob({
+    jobId,
+    novelId,
+    storyboardId: novel.storyboardId,
+    userId,
+    crId,
+    timestamp,
+    timestampNumber
+  });
+
+  await sendChangeRequestToQueue({
+    crId,
+    jobId,
+    novelId,
+    storyboardId: novel.storyboardId,
+    userId,
+    naturalLanguage,
+    context
+  });
+
+  return successResponse(
+    {
+      crId,
+      jobId,
+      status: 'queued',
+      message: '改稿请求已排队，稍后可通过 GET /jobs/{jobId} 查看进度'
+    },
+    202
+  );
+}
+
+async function createChangeRequestRecord({
+  crId,
+  novelId,
+  storyboardId,
+  naturalLanguage,
+  userId,
+  context,
+  timestamp,
+  timestampNumber
+}) {
+  const item = {
+    PK: `NOVEL#${novelId}`,
+    SK: `CR#${crId}`,
+    id: crId,
+    novelId,
+    storyboardId,
+    naturalLanguage,
+    status: 'queued',
+    userId,
+    createdAt: timestamp,
+    updatedAt: timestamp,
+    context,
+    GSI1PK: `USER#${userId}`,
+    GSI1SK: `CR#${timestampNumber}`,
+    GSI2PK: `NOVEL#${novelId}`,
+    GSI2SK: timestampNumber
+  };
+
+  await docClient.send(
+    new PutCommand({
+      TableName: TABLE_NAME,
+      Item: item
+    })
+  );
+}
+
+async function createChangeRequestJob({
+  jobId,
+  novelId,
+  storyboardId,
+  userId,
+  crId,
+  timestamp,
+  timestampNumber
+}) {
+  const jobItem = {
+    PK: `JOB#${jobId}`,
+    SK: `JOB#${jobId}`,
+    id: jobId,
+    type: 'change_request',
+    status: 'queued',
+    novelId,
+    storyboardId,
+    crId,
+    userId,
+    progress: {
+      total: 1,
+      completed: 0,
+      failed: 0,
+      percentage: 0,
+      stage: 'queued',
+      message: '改稿任务已排队，等待 ChangeRequestWorker 执行'
+    },
+    result: null,
+    createdAt: timestamp,
+    updatedAt: timestamp,
+    GSI1PK: `USER#${userId}`,
+    GSI1SK: `JOB#${timestampNumber}`,
+    GSI2PK: `NOVEL#${novelId}`,
+    GSI2SK: timestampNumber
+  };
+
+  await docClient.send(
+    new PutCommand({
+      TableName: TABLE_NAME,
+      Item: jobItem
+    })
+  );
+}
+
+async function sendChangeRequestToQueue({
+  crId,
+  jobId,
+  novelId,
+  storyboardId,
+  userId,
+  naturalLanguage,
+  context
+}) {
+  if (!CHANGE_REQUEST_QUEUE_URL) {
+    throw new Error('CHANGE_REQUEST_QUEUE_URL environment variable not set');
+  }
+
+  const payload = {
+    crId,
+    jobId,
+    novelId,
+    storyboardId,
+    userId,
+    naturalLanguage,
+    context,
+    enqueuedAt: Date.now()
+  };
+
+  await sqsClient.send(
+    new SendMessageCommand({
+      QueueUrl: CHANGE_REQUEST_QUEUE_URL,
+      MessageBody: JSON.stringify(payload),
+      MessageAttributes: {
+        crId: { DataType: 'String', StringValue: crId },
+        novelId: { DataType: 'String', StringValue: novelId }
+      }
+    })
+  );
+}
+
+async function processChangeRequestMessage(message) {
+  const { crId, jobId, novelId, storyboardId, userId, naturalLanguage, context = {} } = message || {};
+  if (!crId || !jobId || !novelId || !storyboardId || !naturalLanguage) {
+    console.error('[ChangeRequestWorker] 消息缺失必要字段', message);
+    return;
+  }
+
+  const claimed = await claimChangeRequest(crId, novelId);
+  if (!claimed) {
+    console.log(`[ChangeRequestWorker] CR ${crId} 状态已变更，跳过`);
+    return;
+  }
+
+  try {
+    await updateJob(jobId, {
+      status: 'in_progress',
+      progress: {
+        total: 1,
+        completed: 0,
+        failed: 0,
+        percentage: 0,
+        stage: 'parsing',
+        message: '正在解析改稿指令'
+      }
+    });
 
     const novel = await loadNovel(novelId);
     if (!novel) {
-      return errorResponse(404, `Novel ${novelId} not found`);
+      throw new Error(`Novel ${novelId} not found`);
     }
-    if (!novel.storyboardId) {
-      return errorResponse(409, 'Storyboard not generated yet. Run /novels/{id}/analyze first.');
-    }
-
-    const crId = uuid();
-    const jobId = uuid();
-    const timestamp = new Date().toISOString();
-    const timestampNumber = Date.now();
-
-    const crItem = {
-      PK: `NOVEL#${novelId}`,
-      SK: `CR#${crId}`,
-      id: crId,
-      novelId,
-      storyboardId: novel.storyboardId,
-      naturalLanguage,
-      status: 'parsing',
-      userId,
-      createdAt: timestamp,
-      updatedAt: timestamp,
-      context,
-      GSI1PK: `USER#${userId}`,
-      GSI1SK: `CR#${timestampNumber}`,
-      GSI2PK: `NOVEL#${novelId}`,
-      GSI2SK: timestampNumber
-    };
-
-    await docClient.send(
-      new PutCommand({
-        TableName: TABLE_NAME,
-        Item: crItem
-      })
-    );
 
     const qwen = await getQwenAdapter();
     const dsl = await qwen.parseChangeRequest({
@@ -111,11 +290,88 @@ exports.handler = async (event) => {
       jsonSchema: CR_DSL_SCHEMA,
       context: {
         novelId,
-        storyboardId: novel.storyboardId,
+        storyboardId,
         ...context
       }
     });
 
+    await saveChangeRequestDsl({
+      novelId,
+      crId,
+      dsl
+    });
+
+    await updateJob(jobId, {
+      progress: {
+        total: dsl.ops?.length || 1,
+        completed: 0,
+        failed: 0,
+        percentage: 0,
+        stage: 'executing',
+        message: '正在执行改稿操作'
+      },
+      result: {
+        scope: dsl.scope,
+        type: dsl.type,
+        targetId: dsl.targetId,
+        operations: []
+      }
+    });
+
+    const executionResult = await executeChangeRequest({
+      dsl,
+      crId,
+      jobId,
+      novel,
+      userId,
+      naturalLanguage
+    });
+
+    await finalizeChangeRequest({
+      crId,
+      novelId,
+      jobId,
+      status: 'completed'
+    });
+
+    await updateJob(jobId, {
+      status: 'completed',
+      result: executionResult,
+      progress: {
+        total: dsl.ops?.length || 1,
+        completed: dsl.ops?.length || 1,
+        failed: 0,
+        percentage: 100,
+        stage: 'completed',
+        message: '改稿完成'
+      }
+    });
+  } catch (error) {
+    console.error(`[ChangeRequestWorker] 改稿 ${crId} 失败:`, error);
+    await finalizeChangeRequest({
+      crId,
+      novelId,
+      jobId,
+      status: 'failed',
+      error: error.message
+    });
+    await updateJob(jobId, {
+      status: 'failed',
+      error: error.message,
+      progress: {
+        total: 1,
+        completed: 0,
+        failed: 1,
+        percentage: 0,
+        stage: 'failed',
+        message: error.message
+      }
+    });
+  }
+}
+
+async function claimChangeRequest(crId, novelId) {
+  try {
     await docClient.send(
       new UpdateCommand({
         TableName: TABLE_NAME,
@@ -123,100 +379,47 @@ exports.handler = async (event) => {
           PK: `NOVEL#${novelId}`,
           SK: `CR#${crId}`
         },
-        UpdateExpression: 'SET dsl = :dsl, #status = :status, updatedAt = :updatedAt',
+        ConditionExpression: '#status = :queued',
+        UpdateExpression: 'SET #status = :parsing, updatedAt = :updatedAt',
         ExpressionAttributeNames: {
           '#status': 'status'
         },
         ExpressionAttributeValues: {
-          ':dsl': dsl,
-          ':status': 'pending',
+          ':queued': 'queued',
+          ':parsing': 'parsing',
           ':updatedAt': new Date().toISOString()
         }
       })
     );
-
-    const jobItem = {
-      PK: `JOB#${jobId}`,
-      SK: `JOB#${jobId}`,
-      id: jobId,
-      type: 'change_request',
-      status: 'in_progress',
-      novelId,
-      storyboardId: novel.storyboardId,
-      crId,
-      userId,
-      progress: {
-        total: dsl.ops?.length || 1,
-        completed: 0,
-        failed: 0,
-        percentage: 0
-      },
-      result: {
-        scope: dsl.scope,
-        type: dsl.type,
-        targetId: dsl.targetId,
-        operations: []
-      },
-      createdAt: timestamp,
-      updatedAt: timestamp,
-      GSI1PK: `USER#${userId}`,
-      GSI1SK: `JOB#${timestampNumber}`,
-      GSI2PK: `NOVEL#${novelId}`,
-      GSI2SK: timestampNumber
-    };
-
-    await docClient.send(
-      new PutCommand({
-        TableName: TABLE_NAME,
-        Item: jobItem
-      })
-    );
-
-    try {
-      const executionResult = await executeChangeRequest({
-        dsl,
-        crId,
-        jobId,
-        novel,
-        userId,
-        naturalLanguage
-      });
-
-      await finalizeChangeRequest({
-        crId,
-        novelId,
-        jobId,
-        status: 'completed'
-      });
-
-      return successResponse(
-        {
-          crId,
-          jobId,
-          dsl,
-          result: executionResult,
-          message: 'Change request completed'
-        },
-        202
-      );
-    } catch (executionError) {
-      console.error('[ChangeRequest] Execution failed:', executionError);
-
-      await finalizeChangeRequest({
-        crId,
-        novelId,
-        jobId,
-        status: 'failed',
-        error: executionError.message
-      });
-
-      return errorResponse(500, `Failed to execute change request: ${executionError.message}`);
-    }
+    return true;
   } catch (error) {
-    console.error('[ChangeRequest] Unexpected error:', error);
-    return errorResponse(500, error.message || 'Internal Server Error');
+    if (error.name === 'ConditionalCheckFailedException') {
+      return false;
+    }
+    throw error;
   }
-};
+}
+
+async function saveChangeRequestDsl({ novelId, crId, dsl }) {
+  await docClient.send(
+    new UpdateCommand({
+      TableName: TABLE_NAME,
+      Key: {
+        PK: `NOVEL#${novelId}`,
+        SK: `CR#${crId}`
+      },
+      UpdateExpression: 'SET dsl = :dsl, #status = :status, updatedAt = :updatedAt',
+      ExpressionAttributeNames: {
+        '#status': 'status'
+      },
+      ExpressionAttributeValues: {
+        ':dsl': dsl,
+        ':status': 'pending',
+        ':updatedAt': new Date().toISOString()
+      }
+    })
+  );
+}
 
 async function getQwenAdapter() {
   if (!qwenAdapterPromise) {
@@ -893,3 +1096,5 @@ function determineAspectRatio(panel) {
   }
   return null;
 }
+
+exports.processChangeRequestMessage = processChangeRequestMessage;
