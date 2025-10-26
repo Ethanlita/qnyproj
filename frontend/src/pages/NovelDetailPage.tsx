@@ -10,6 +10,7 @@ import {
   BibleUploadRequest,
   type Novel,
   type Storyboard,
+  type StoryboardSummary,
   type Panel as PanelModel,
   type CRDSL,
   type Export,
@@ -97,6 +98,12 @@ export function NovelDetailPage() {
   const [novel, setNovel] = useState<Novel | null>(null);
   const [storyboard, setStoryboard] = useState<Storyboard | null>(null);
   const [panels, setPanels] = useState<PanelForDisplay[]>([]);
+  const [chapterSummaries, setChapterSummaries] = useState<StoryboardSummary[]>([]);
+  const [chaptersLoading, setChaptersLoading] = useState(false);
+  const [chaptersError, setChaptersError] = useState<string | null>(null);
+  const [activeStoryboardId, setActiveStoryboardId] = useState<string | null>(null);
+  const [storyboardLoading, setStoryboardLoading] = useState(false);
+  const [storyboardError, setStoryboardError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -160,6 +167,7 @@ export function NovelDetailPage() {
       setAnalysisPending(false);
       await loadNovel();
       await loadBible();
+      await loadChapterSummaries();
       const referenceJobId =
         (job.progress as { referenceJobId?: string } | undefined)?.referenceJobId;
       if (referenceJobId) {
@@ -181,7 +189,7 @@ export function NovelDetailPage() {
     stop: stopPanelJob
   } = useJobMonitor({
     onCompleted: async () => {
-      await loadStoryboard();
+      await loadStoryboardById(storyboard?.id ?? activeStoryboardId);
       setPanelError(null);
     },
     onFailed: async ({ error: jobError }) => {
@@ -196,7 +204,7 @@ export function NovelDetailPage() {
   } = useJobMonitor({
     onCompleted: async () => {
       setCrMessage('✅ 修改完成，面板已更新');
-      await loadStoryboard();
+      await loadStoryboardById(storyboard?.id ?? activeStoryboardId);
     },
     onFailed: async ({ error: jobError }) => {
       setCrMessage(`❌ 修改失败：${jobError || '请查看 CloudWatch 日志'}`);
@@ -229,7 +237,7 @@ export function NovelDetailPage() {
     stop: stopPanelEditJob
   } = useJobMonitor({
     onCompleted: async () => {
-      await loadStoryboard();
+      await loadStoryboardById(storyboard?.id ?? activeStoryboardId);
       setEditingPanel(null);
       setMaskDataUrl(undefined);
     },
@@ -237,6 +245,53 @@ export function NovelDetailPage() {
       alert(`编辑失败：${jobError || '请查看日志'}`);
     }
   });
+
+  const loadChapterSummaries = useCallback(async () => {
+    if (!novelId) {
+      setChapterSummaries([]);
+      setChaptersError(null);
+      setActiveStoryboardId(null);
+      return;
+    }
+    try {
+      setChaptersLoading(true);
+      setChaptersError(null);
+      const response = await StoryboardsService.getNovelsStoryboards({ novelId });
+      const sorted = [...(response.items ?? [])].sort((a, b) => {
+        const left = a.chapterNumber ?? 0;
+        const right = b.chapterNumber ?? 0;
+        return left - right;
+      });
+      setChapterSummaries(sorted);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      setChaptersError(message);
+    } finally {
+      setChaptersLoading(false);
+    }
+  }, [novelId]);
+
+  const loadStoryboardById = useCallback(async (targetId: string | null) => {
+    if (!targetId) {
+      setStoryboard(null);
+      setPanels([]);
+      setStoryboardError(null);
+      setStoryboardLoading(false);
+      return;
+    }
+    try {
+      setStoryboardLoading(true);
+      setStoryboardError(null);
+      const sb = await StoryboardsService.getStoryboards({ id: targetId });
+      setStoryboard(sb);
+      setPanels(transformPanels(sb.panels ?? []));
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      setStoryboardError(message);
+    } finally {
+      setStoryboardLoading(false);
+    }
+  }, []);
 
   const loadNovel = useCallback(async () => {
     if (!novelId) {
@@ -252,15 +307,6 @@ export function NovelDetailPage() {
       const data = await NovelsService.getNovels({ id: novelId });
       setNovel(data);
       stashNovel(novelId);
-
-      if (data.storyboardId) {
-        const sb = await StoryboardsService.getStoryboards({ id: data.storyboardId });
-        setStoryboard(sb);
-        setPanels(transformPanels(sb.panels ?? []));
-      } else {
-        setStoryboard(null);
-        setPanels([]);
-      }
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       setError(message);
@@ -287,17 +333,6 @@ export function NovelDetailPage() {
   }, [novelId]);
 
 
-  const loadStoryboard = useCallback(async () => {
-    if (!novel?.storyboardId) return;
-    try {
-      const sb = await StoryboardsService.getStoryboards({ id: novel.storyboardId });
-      setStoryboard(sb);
-      setPanels(transformPanels(sb.panels ?? []));
-    } catch (err) {
-      console.warn('[NovelDetail] Storyboard reload failed', err);
-    }
-  }, [novel?.storyboardId]);
-
   useEffect(() => {
     void loadNovel();
   }, [loadNovel]);
@@ -314,6 +349,41 @@ export function NovelDetailPage() {
   useEffect(() => {
     void loadBible();
   }, [loadBible]);
+
+  useEffect(() => {
+    void loadChapterSummaries();
+  }, [loadChapterSummaries]);
+
+  useEffect(() => {
+    void loadStoryboardById(activeStoryboardId);
+  }, [activeStoryboardId, loadStoryboardById]);
+
+  useEffect(() => {
+    if (chapterSummaries.length === 0) {
+      setActiveStoryboardId(null);
+      setStoryboard(null);
+      setPanels([]);
+      return;
+    }
+    setActiveStoryboardId((current) => {
+      const hasActive =
+        current && chapterSummaries.some((item) => item.id === current);
+      if (hasActive) {
+        return current;
+      }
+      const preferred = novel?.storyboardId
+        ? chapterSummaries.find((item) => item.id === novel.storyboardId)
+        : null;
+      const fallback = chapterSummaries[chapterSummaries.length - 1];
+      return (preferred ?? fallback)?.id ?? null;
+    });
+  }, [chapterSummaries, novel?.storyboardId]);
+
+  useEffect(() => {
+    setEditingPanel(null);
+    setActivePanelTextId(null);
+    setPanelTextDraft(null);
+  }, [activeStoryboardId]);
 
   const handleAnalyze = async () => {
     if (!novelId) return;
@@ -797,7 +867,7 @@ export function NovelDetailPage() {
         panelId: panelTextDraft.id,
         requestBody: payload
       });
-      await loadStoryboard();
+      await loadStoryboardById(storyboard?.id ?? activeStoryboardId);
       setActivePanelTextId(null);
       setPanelTextDraft(null);
     } catch (err) {
@@ -807,6 +877,13 @@ export function NovelDetailPage() {
       setSavingPanelTextId(null);
     }
   };
+
+  const activeChapter = useMemo(() => {
+    if (!activeStoryboardId) {
+      return null;
+    }
+    return chapterSummaries.find((item) => item.id === activeStoryboardId) ?? null;
+  }, [activeStoryboardId, chapterSummaries]);
 
   const panelStatusCounts = useMemo(() => {
     const counts = new Map<string, number>();
@@ -873,7 +950,7 @@ export function NovelDetailPage() {
             {novel.metadata?.genre && <span>类型：{novel.metadata.genre}</span>}
             <span>作品 ID：{novel.id}</span>
             {novel.storyboardId && <span>分镜：{novel.storyboardId}</span>}
-            {storyboard?.chapterNumber && <span>当前分镜章节：第 {storyboard.chapterNumber} 章</span>}
+            {activeChapter?.chapterNumber && <span>当前分镜章节：第 {activeChapter.chapterNumber} 章</span>}
             <span>章节：{novel.chapterCount ?? bible?.metadata?.lastChapter ?? 0}</span>
           </div>
         </div>
@@ -905,6 +982,50 @@ export function NovelDetailPage() {
             查看导出记录
           </button>
         </div>
+      </section>
+
+      <section className={styles.chapterSection}>
+        <div className={styles.sectionHeader}>
+          <div>
+            <h2>章节分镜</h2>
+            <span>已生成 {chapterSummaries.length} 章</span>
+          </div>
+          <div className={styles.chapterActions}>
+            <button
+              type="button"
+              className={styles.secondaryButton}
+              onClick={() => void loadChapterSummaries()}
+              disabled={chaptersLoading}
+            >
+              {chaptersLoading ? '刷新中...' : '刷新列表'}
+            </button>
+          </div>
+        </div>
+        {chaptersError && <div className={styles.errorBox}>章节加载失败：{chaptersError}</div>}
+        {chapterSummaries.length === 0 ? (
+          <p className={styles.helperText}>还没有分镜章节，先运行「重新分析」并生成面板吧。</p>
+        ) : (
+          <div className={styles.chapterList}>
+            {chapterSummaries.map((summary) => {
+              const isActive = summary.id === activeStoryboardId;
+              const chapterLabel = summary.chapterNumber ? `第 ${summary.chapterNumber} 章` : '未标记章节';
+              const panelCountLabel = summary.panelCount ?? summary.totalPanels ?? 0;
+              return (
+                <button
+                  type="button"
+                  key={summary.id}
+                  className={`${styles.chapterButton} ${isActive ? styles.chapterButtonActive : ''}`}
+                  onClick={() => setActiveStoryboardId(summary.id)}
+                >
+                  <span className={styles.chapterButtonTitle}>{chapterLabel}</span>
+                  <span className={styles.chapterButtonMeta}>
+                    {panelCountLabel} 个面板 · {statusLabel(summary.status || 'generated')}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        )}
       </section>
 
       <section className={styles.grid}>
@@ -1427,10 +1548,24 @@ export function NovelDetailPage() {
 
       <section className={styles.panelSection}>
         <header>
-          <h2>面板预览</h2>
-          <span>点击面板可打开编辑工具</span>
+          <h2>
+            面板预览
+            {activeChapter?.chapterNumber ? ` · 第 ${activeChapter.chapterNumber} 章` : ''}
+          </h2>
+          <span>
+            {storyboardLoading
+              ? '分镜加载中...'
+              : activeStoryboardId
+                ? '点击面板可打开编辑工具'
+                : '请选择一个章节'}
+          </span>
         </header>
-        {panels.length === 0 ? (
+        {storyboardError && <div className={styles.errorBox}>分镜加载失败：{storyboardError}</div>}
+        {!activeStoryboardId ? (
+          <div className={styles.empty}>请选择章节以查看面板。</div>
+        ) : storyboardLoading ? (
+          <div className={styles.empty}>分镜加载中，请稍候...</div>
+        ) : panels.length === 0 ? (
           <div className={styles.empty}>暂无面板，先进行分析和生成吧。</div>
         ) : (
           <div className={styles.panelGrid}>
@@ -1461,7 +1596,11 @@ export function NovelDetailPage() {
           </div>
           <p className={styles.helperTextSmall}>逐个修订场景描述与 Prompt，保存后即可复用最新文本生成面板</p>
         </div>
-        {panels.length === 0 ? (
+        {!activeStoryboardId ? (
+          <div className={styles.empty}>请选择章节以编辑分镜文案。</div>
+        ) : storyboardLoading ? (
+          <div className={styles.empty}>分镜加载中，请稍候...</div>
+        ) : panels.length === 0 ? (
           <div className={styles.empty}>暂无面板，先进行分析和生成吧。</div>
         ) : (
           <div className={styles.storyboardList}>
@@ -1606,7 +1745,7 @@ export function NovelDetailPage() {
           onInstructionChange={setEditInstruction}
           maskDataUrl={maskDataUrl}
           onMaskUpload={handleMaskUpload}
-          onSceneUpdated={() => void loadStoryboard()}
+          onSceneUpdated={() => void loadStoryboardById(storyboard?.id ?? activeStoryboardId)}
           onClose={() => {
             setEditingPanel(null);
             stopPanelEditJob();
