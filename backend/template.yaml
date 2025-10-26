@@ -3091,6 +3091,7 @@ Resources:
       CodeUri: .
       Handler: functions/change-request/index.handler
       Runtime: nodejs22.x
+      Timeout: 30
       Architectures:
         - x86_64
       Environment:
@@ -3156,6 +3157,7 @@ Resources:
       CodeUri: .
       Handler: functions/export/index.handler
       Runtime: nodejs22.x
+      Timeout: 30
       Architectures:
         - x86_64
       Environment:
