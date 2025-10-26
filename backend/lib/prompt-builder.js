@@ -196,7 +196,7 @@ function buildPanelPrompt(panel = {}, characterRefs = {}, options = {}) {
     visualPrompt
   } = panel;
 
-  const parts = ['manga panel illustration', JAPANESE_MANGA_DIRECTIVE];
+  const parts = ['manga panel illustration', 'full-color vibrant palette, no grayscale output', JAPANESE_MANGA_DIRECTIVE];
   appendIfDefined(parts, mode === 'hd' ? 'high resolution detailed render' : 'preview quality');
   appendIfDefined(parts, scene);
   appendIfDefined(parts, shotType ? `${shotType} shot` : null);
