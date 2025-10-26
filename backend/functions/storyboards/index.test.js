@@ -60,7 +60,12 @@ describe('StoryboardsFunction', () => {
     });
 
     const response = await handler(
-      buildEvent({ pathParameters: { id: 'novel-1' } })
+      buildEvent({
+        resource: '/novels/{id}/storyboards',
+        path: '/novels/novel-1/storyboards',
+        rawPath: '/novels/novel-1/storyboards',
+        pathParameters: { id: 'novel-1' }
+      })
     );
 
     expect(response.statusCode).toBe(200);
@@ -88,7 +93,12 @@ describe('StoryboardsFunction', () => {
     });
 
     const response = await handler(
-      buildEvent({ pathParameters: { id: 'novel-1' } })
+      buildEvent({
+        resource: '/novels/{id}/storyboards',
+        path: '/novels/novel-1/storyboards',
+        rawPath: '/novels/novel-1/storyboards',
+        pathParameters: { id: 'novel-1' }
+      })
     );
 
     expect(response.statusCode).toBe(403);

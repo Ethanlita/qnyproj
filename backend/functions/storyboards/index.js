@@ -37,9 +37,16 @@ exports.handler = async (event) => {
     }
 
     const { pathParameters = {} } = event;
-    const novelIdForList = pathParameters.novelId ?? pathParameters.id;
+    const resourcePath = event.resource || '';
+    const rawPath = event.rawPath || event.path || '';
+    const isChapterListRoute =
+      resourcePath === '/novels/{id}/storyboards' ||
+      resourcePath === '/dev/novels/{id}/storyboards' ||
+      (rawPath.includes('/novels/') && rawPath.includes('/storyboards'));
 
-    if (method === 'GET' && novelIdForList) {
+    const novelIdForList = isChapterListRoute ? (pathParameters.novelId ?? pathParameters.id) : undefined;
+
+    if (method === 'GET' && isChapterListRoute && novelIdForList) {
       console.log(`[StoryboardsFunction] user=${userId} list novel=${novelIdForList}`);
       return await handleListStoryboards(novelIdForList, userId);
     }
