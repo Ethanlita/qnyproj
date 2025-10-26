@@ -1,4 +1,5 @@
 const { DynamoDBClient } = require('@aws-sdk/client-dynamodb');
+const { GetObjectCommand } = require('@aws-sdk/client-s3');
 const {
   DynamoDBDocumentClient,
   GetCommand,
@@ -6,9 +7,12 @@ const {
   PutCommand,
   UpdateCommand
 } = require('@aws-sdk/lib-dynamodb');
+const { PDFDocument, StandardFonts, rgb } = require('pdf-lib');
+const { PNG } = require('pngjs');
+const jpeg = require('jpeg-js');
 const { successResponse, errorResponse } = require('../../lib/response');
 const { getUserId } = require('../../lib/auth');
-const { getPresignedUrl, uploadImage } = require('../../lib/s3-utils');
+const { s3Client, getPresignedUrl, uploadImage } = require('../../lib/s3-utils');
 const { v4: uuid } = require('uuid');
 
 const dynamoClient = new DynamoDBClient({});
@@ -221,7 +225,7 @@ async function handleGetExport(exportId, userId) {
 async function buildExportAsset({ format, novel, storyboard, panels }) {
   switch (format) {
     case 'pdf': {
-      const buffer = createPdfBuffer(novel, storyboard, panels);
+      const buffer = await createPdfBuffer(novel, storyboard, panels);
       return {
         buffer,
         filename: 'comic.pdf',
@@ -229,7 +233,7 @@ async function buildExportAsset({ format, novel, storyboard, panels }) {
       };
     }
     case 'webtoon': {
-      const buffer = createWebtoonPlaceholder(storyboard, panels);
+      const buffer = await createWebtoonPlaceholder(storyboard, panels);
       return {
         buffer,
         filename: 'webtoon.png',
@@ -237,7 +241,7 @@ async function buildExportAsset({ format, novel, storyboard, panels }) {
       };
     }
     case 'resources': {
-      const buffer = createResourcesArchive(novel, storyboard, panels);
+      const buffer = await createResourcesArchive(novel, storyboard, panels);
       return {
         buffer,
         filename: 'resources.zip',
@@ -426,120 +430,209 @@ async function loadExport(exportId) {
   return result.Item || null;
 }
 
-function createPdfBuffer(novel, storyboard, panels) {
-  const lines = [];
-  lines.push(`Title: ${novel.title || 'Untitled Novel'}`);
-  lines.push(`Storyboard: ${storyboard.id}`);
-  lines.push('');
+async function createPdfBuffer(novel, storyboard, panels = []) {
+  const sortedPanels = sortPanels(panels);
+  const assets = await fetchPanelImageAssets(sortedPanels);
+  const pdf = await PDFDocument.create();
+  const bodyFont = await pdf.embedFont(StandardFonts.Helvetica);
+  const headingFont = await pdf.embedFont(StandardFonts.HelveticaBold);
 
-  const sorted = panels.slice().sort((a, b) => {
-    if (a.page === b.page) {
-      return (a.index || 0) - (b.index || 0);
-    }
-    return (a.page || 0) - (b.page || 0);
+  const cover = pdf.addPage([612, 792]);
+  const coverWidth = cover.getWidth();
+  let cursorY = cover.getHeight() - 80;
+  cover.drawText(novel.title || 'Untitled Novel', {
+    x: 50,
+    y: cursorY,
+    size: 28,
+    font: headingFont
+  });
+  cursorY -= 40;
+  cover.drawText(`Storyboard: ${storyboard.id}`, {
+    x: 50,
+    y: cursorY,
+    size: 14,
+    font: bodyFont
+  });
+  cursorY -= 20;
+  cover.drawText(`Panels: ${sortedPanels.length}`, {
+    x: 50,
+    y: cursorY,
+    size: 14,
+    font: bodyFont
+  });
+  cursorY -= 30;
+  cover.drawRectangle({
+    x: 50,
+    y: cursorY,
+    width: coverWidth - 100,
+    height: 1,
+    color: rgb(0.4, 0.4, 0.4)
+  });
+  cursorY -= 30;
+  cover.drawText(`Generated at ${new Date().toISOString()}`, {
+    x: 50,
+    y: cursorY,
+    size: 12,
+    font: bodyFont,
+    color: rgb(0.3, 0.3, 0.3)
   });
 
-  for (const panel of sorted) {
-    const scene = panel.scene || panel.content?.scene || 'Scene description missing';
-    const dialogue = (panel.dialogue || panel.content?.dialogue || [])
-      .map((d) => `${d.speaker || '??'}: ${d.text || ''}`)
-      .join(' | ');
-
-    lines.push(`P${panel.page ?? '?'}-${panel.index ?? '?'}: ${scene}`);
-    if (dialogue) {
-      lines.push(`    Dialogue: ${dialogue}`);
+  const panelAssets = assets.length > 0 ? assets : [{ panel: null, buffer: PLACEHOLDER_PNG, format: 'png' }];
+  for (const { panel, buffer, format } of panelAssets) {
+    const page = pdf.addPage([612, 792]);
+    const margin = 40;
+    const textBlockHeight = 160;
+    const imageAreaHeight = page.getHeight() - margin * 2 - textBlockHeight;
+    const availableWidth = page.getWidth() - margin * 2;
+    let embeddedImage;
+    try {
+      if (format === 'jpeg' || format === 'jpg') {
+        embeddedImage = await pdf.embedJpg(buffer);
+      } else {
+        embeddedImage = await pdf.embedPng(buffer);
+      }
+    } catch (error) {
+      console.warn('[Export] Failed to embed panel image in PDF, using placeholder:', error?.message);
+      embeddedImage = await pdf.embedPng(PLACEHOLDER_PNG);
     }
-    lines.push('');
+
+    const scale = Math.min(
+      availableWidth / embeddedImage.width,
+      imageAreaHeight / embeddedImage.height,
+      1.2
+    );
+    const drawWidth = embeddedImage.width * scale;
+    const drawHeight = embeddedImage.height * scale;
+    const imageX = margin + (availableWidth - drawWidth) / 2;
+    const imageY = page.getHeight() - margin - drawHeight;
+    page.drawImage(embeddedImage, {
+      x: imageX,
+      y: imageY,
+      width: drawWidth,
+      height: drawHeight
+    });
+
+    let textY = imageY - 20;
+    const panelLabel = panel
+      ? `Page ${panel.page ?? '?'} · Panel ${panel.index ?? '?'}`
+      : 'Panel';
+    page.drawText(panelLabel, {
+      x: margin,
+      y: textY,
+      size: 13,
+      font: headingFont
+    });
+    textY -= 18;
+
+    const narrative = panel ? buildPanelNarrativeLines(panel) : ['No storyboard data provided'];
+    for (const line of narrative) {
+      if (textY < margin) break;
+      page.drawText(line, {
+        x: margin,
+        y: textY,
+        size: 11,
+        font: bodyFont,
+        color: rgb(0.2, 0.2, 0.2)
+      });
+      textY -= 14;
+    }
   }
 
-  const pageContent = buildPdfContent(lines);
-  const contentLength = Buffer.byteLength(pageContent, 'utf8');
+  const pdfBytes = await pdf.save();
+  return Buffer.from(pdfBytes);
+}
 
-  const objects = [];
-  const offsets = [];
-  let cursor = 0;
+async function createWebtoonPlaceholder(storyboard, panels = []) {
+  const sortedPanels = sortPanels(panels);
+  const assets = await fetchPanelImageAssets(sortedPanels);
+  const decodedImages = [];
 
-  const header = '%PDF-1.4\n';
-  cursor += Buffer.byteLength(header, 'utf8');
-
-  const obj1 = '1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n';
-  offsets.push(cursor);
-  cursor += Buffer.byteLength(obj1, 'utf8');
-
-  const obj2 = '2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n';
-  offsets.push(cursor);
-  cursor += Buffer.byteLength(obj2, 'utf8');
-
-  const obj3 =
-    '3 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >>\nendobj\n';
-  offsets.push(cursor);
-  cursor += Buffer.byteLength(obj3, 'utf8');
-
-  const obj4 = `4 0 obj\n<< /Length ${contentLength} >>\nstream\n${pageContent}\nendstream\nendobj\n`;
-  offsets.push(cursor);
-  cursor += Buffer.byteLength(obj4, 'utf8');
-
-  const obj5 = '5 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n';
-  offsets.push(cursor);
-  cursor += Buffer.byteLength(obj5, 'utf8');
-
-  const xrefOffset = cursor;
-  const xrefHeader = `xref\n0 6\n0000000000 65535 f \n`;
-  let xrefBody = '';
-  for (const offset of offsets) {
-    xrefBody += `${offset.toString().padStart(10, '0')} 00000 n \n`;
+  for (const asset of assets.length > 0 ? assets : [{ buffer: PLACEHOLDER_PNG, format: 'png', panel: null }]) {
+    const buffer = asset.buffer || PLACEHOLDER_PNG;
+    const format = asset.format || detectImageFormat(buffer)?.type || 'png';
+    const decoded = decodeImageToRgba(buffer, format);
+    if (decoded) {
+      decodedImages.push(decoded);
+    }
   }
 
-  const trailer = `trailer\n<< /Size 6 /Root 1 0 R >>\nstartxref\n${xrefOffset}\n%%EOF`;
-
-  const buffers = [
-    Buffer.from(header, 'utf8'),
-    Buffer.from(obj1, 'utf8'),
-    Buffer.from(obj2, 'utf8'),
-    Buffer.from(obj3, 'utf8'),
-    Buffer.from(obj4, 'utf8'),
-    Buffer.from(obj5, 'utf8'),
-    Buffer.from(xrefHeader, 'utf8'),
-    Buffer.from(xrefBody, 'utf8'),
-    Buffer.from(trailer, 'utf8')
-  ];
-
-  return Buffer.concat(buffers);
-}
-
-function buildPdfContent(lines) {
-  const textLines = lines.length > 0 ? lines : ['(empty page)'];
-  const content = ['BT', '/F1 12 Tf', '72 720 Td'];
-  for (const line of textLines) {
-    content.push(`(${escapePdfText(line)}) Tj`);
-    content.push('0 -16 Td');
+  if (decodedImages.length === 0) {
+    const fallback = decodeImageToRgba(PLACEHOLDER_PNG, 'png');
+    decodedImages.push(fallback);
   }
-  content.push('ET');
-  return content.join('\n');
+
+  const gutter = 32;
+  const width = Math.max(decodedImages.reduce((max, img) => Math.max(max, img.width), 0), 512);
+  const height =
+    decodedImages.reduce((sum, img, index) => sum + img.height + (index > 0 ? gutter : 0), 0) || 512;
+  const canvas = new PNG({ width, height });
+  canvas.data.fill(255);
+
+  let offsetY = 0;
+  for (const img of decodedImages) {
+    const offsetX = Math.floor((width - img.width) / 2);
+    compositeImage(canvas, img, offsetX, offsetY);
+    offsetY += img.height + gutter;
+  }
+
+  return PNG.sync.write(canvas);
 }
 
-function createWebtoonPlaceholder(storyboard, panels) {
-  // Include minimal metadata so downstream systems can read context even though image is placeholder
-  const metadata = {
-    storyboardId: storyboard.id,
-    panelCount: panels.length,
-    generatedAt: new Date().toISOString()
-  };
-
-  const metaBuffer = Buffer.from(JSON.stringify(metadata), 'utf8');
-  return Buffer.concat([PLACEHOLDER_PNG, metaBuffer]);
-}
-
-function createResourcesArchive(novel, storyboard, panels) {
-  const entries = [];
+async function createResourcesArchive(novel, storyboard, panels = []) {
   const now = new Date();
+  const sortedPanels = sortPanels(panels);
+  const assets = await fetchPanelImageAssets(sortedPanels);
+  const entries = [];
+
+  const manifest = [];
+  sortedPanels.forEach((panel, index) => {
+    const asset = assets[index];
+    const baseName = buildPanelBaseName(panel, index);
+    const jsonFile = `panels/${baseName}.json`;
+    entries.push({
+      name: jsonFile,
+      data: JSON.stringify(panel, null, 2),
+      date: now
+    });
+
+    let imageFile = null;
+    if (asset?.buffer) {
+      const ext = asset.extension || (asset.format === 'jpeg' ? 'jpg' : 'png');
+      imageFile = `images/${baseName}.${ext}`;
+      entries.push({
+        name: imageFile,
+        data: asset.buffer,
+        date: now
+      });
+    }
+
+    manifest.push({
+      id: panel.id,
+      page: panel.page,
+      index: panel.index,
+      scene: panel.scene || panel.content?.scene || '',
+      dialogue: panel.dialogue || panel.content?.dialogue || [],
+      panelFile: jsonFile,
+      imageFile,
+      imageSource: asset?.key || null
+    });
+  });
 
   const metadata = {
-    novelId: novel.id,
-    title: novel.title,
-    storyboardId: storyboard.id,
-    totalPanels: panels.length,
-    exportedAt: now.toISOString()
+    novel: {
+      id: novel.id,
+      title: novel.title || null,
+      author: novel.author || null
+    },
+    storyboard: {
+      id: storyboard.id,
+      title: storyboard.title || null,
+      createdAt: storyboard.createdAt || null,
+      updatedAt: storyboard.updatedAt || null
+    },
+    panelCount: panels.length,
+    generatedAt: now.toISOString(),
+    panels: manifest
   };
 
   entries.push({
@@ -548,34 +641,327 @@ function createResourcesArchive(novel, storyboard, panels) {
     date: now
   });
 
-  const panelData = panels.map((panel) => ({
+  entries.push({
+    name: 'novel.json',
+    data: JSON.stringify(novel, null, 2),
+    date: now
+  });
+
+  entries.push({
+    name: 'storyboard.json',
+    data: JSON.stringify(storyboard, null, 2),
+    date: now
+  });
+
+  const summary = sortedPanels.map((panel, index) => ({
     id: panel.id,
     page: panel.page,
     index: panel.index,
     scene: panel.scene || panel.content?.scene || '',
     dialogue: panel.dialogue || panel.content?.dialogue || [],
-    imagesS3: panel.imagesS3 || {}
+    imagesS3: panel.imagesS3 || {},
+    imageFile: manifest[index]?.imageFile || null
   }));
 
   entries.push({
     name: 'panels.json',
-    data: JSON.stringify(panelData, null, 2),
+    data: JSON.stringify(summary, null, 2),
     date: now
   });
 
   return createZipBuffer(entries);
 }
 
-function escapePdfText(value) {
-  return String(value)
-    .replace(/\\/g, '\\\\')
-    .replace(/\(/g, '\\(')
-    .replace(/\)/g, '\\)');
+function sortPanels(panels = []) {
+  return panels
+    .slice()
+    .sort((a, b) =>
+      (a.page ?? Number.MAX_SAFE_INTEGER) === (b.page ?? Number.MAX_SAFE_INTEGER)
+        ? (a.index ?? Number.MAX_SAFE_INTEGER) - (b.index ?? Number.MAX_SAFE_INTEGER)
+        : (a.page ?? Number.MAX_SAFE_INTEGER) - (b.page ?? Number.MAX_SAFE_INTEGER)
+    );
+}
+
+async function fetchPanelImageAssets(panels = []) {
+  const assets = [];
+  for (const panel of panels) {
+    const key = selectPanelImageKey(panel);
+    if (!key) {
+      assets.push({
+        panel,
+        buffer: PLACEHOLDER_PNG,
+        format: 'png',
+        extension: 'png',
+        mime: 'image/png',
+        key: null,
+        placeholder: true
+      });
+      continue;
+    }
+
+    try {
+      const location = resolveS3Location(key);
+      const buffer = await downloadImageBuffer(location);
+      const formatInfo = detectImageFormat(buffer) || {
+        type: inferExtensionFromKey(location.key) || 'bin',
+        extension: inferExtensionFromKey(location.key) || 'bin',
+        mime: 'application/octet-stream'
+      };
+      assets.push({
+        panel,
+        buffer,
+        format: formatInfo.type,
+        extension: formatInfo.extension,
+        mime: formatInfo.mime,
+        key: `${location.bucket}/${location.key}`,
+        placeholder: false
+      });
+    } catch (error) {
+      console.error(`[Export] Unable to download panel image ${panel?.id || key}:`, error?.message);
+      assets.push({
+        panel,
+        buffer: PLACEHOLDER_PNG,
+        format: 'png',
+        extension: 'png',
+        mime: 'image/png',
+        key,
+        placeholder: true
+      });
+    }
+  }
+  return assets;
+}
+
+function selectPanelImageKey(panel) {
+  if (!panel?.imagesS3) {
+    return null;
+  }
+  const preference = ['pdf', 'hd', 'original', 'preview', 'thumb'];
+  for (const key of preference) {
+    if (panel.imagesS3[key]) {
+      return panel.imagesS3[key];
+    }
+  }
+  const values = Object.values(panel.imagesS3);
+  return values[0] || null;
+}
+
+function resolveS3Location(value) {
+  if (!value) return null;
+  if (value.startsWith('s3://')) {
+    const without = value.slice(5);
+    const [bucket, ...rest] = without.split('/');
+    return { bucket, key: rest.join('/') };
+  }
+  if (!ASSETS_BUCKET) {
+    throw new Error('ASSETS_BUCKET environment variable not set');
+  }
+  return {
+    bucket: ASSETS_BUCKET,
+    key: value.replace(/^\/+/, '')
+  };
+}
+
+async function downloadImageBuffer(location) {
+  if (!location?.bucket || !location?.key) {
+    throw new Error('Invalid S3 object location');
+  }
+  const response = await s3Client.send(
+    new GetObjectCommand({
+      Bucket: location.bucket,
+      Key: location.key
+    })
+  );
+  return streamToBuffer(response.Body);
+}
+
+async function streamToBuffer(body) {
+  if (!body) return Buffer.alloc(0);
+  if (Buffer.isBuffer(body)) {
+    return body;
+  }
+  if (typeof body.arrayBuffer === 'function') {
+    const arrayBuffer = await body.arrayBuffer();
+    return Buffer.from(arrayBuffer);
+  }
+  return new Promise((resolve, reject) => {
+    const chunks = [];
+    body.on('data', (chunk) => chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk)));
+    body.on('end', () => resolve(Buffer.concat(chunks)));
+    body.on('error', reject);
+  });
+}
+
+function detectImageFormat(buffer) {
+  if (!buffer || buffer.length < 4) {
+    return null;
+  }
+  if (
+    buffer[0] === 0x89 &&
+    buffer[1] === 0x50 &&
+    buffer[2] === 0x4e &&
+    buffer[3] === 0x47 &&
+    buffer[4] === 0x0d &&
+    buffer[5] === 0x0a &&
+    buffer[6] === 0x1a &&
+    buffer[7] === 0x0a
+  ) {
+    return { type: 'png', extension: 'png', mime: 'image/png' };
+  }
+  if (buffer[0] === 0xff && buffer[1] === 0xd8) {
+    return { type: 'jpeg', extension: 'jpg', mime: 'image/jpeg' };
+  }
+  if (
+    buffer.length > 12 &&
+    buffer.toString('ascii', 0, 4) === 'RIFF' &&
+    buffer.toString('ascii', 8, 12) === 'WEBP'
+  ) {
+    return { type: 'webp', extension: 'webp', mime: 'image/webp' };
+  }
+  return null;
+}
+
+function decodeImageToRgba(buffer, format) {
+  try {
+    if (format === 'jpeg' || format === 'jpg') {
+      const decoded = jpeg.decode(buffer, { useTArray: true });
+      return {
+        width: decoded.width,
+        height: decoded.height,
+        data: Buffer.from(decoded.data)
+      };
+    }
+    if (format === 'png') {
+      const png = PNG.sync.read(buffer);
+      return {
+        width: png.width,
+        height: png.height,
+        data: png.data
+      };
+    }
+  } catch (error) {
+    console.warn('[Export] Unable to decode image buffer:', error?.message);
+  }
+  return null;
+}
+
+function compositeImage(canvas, image, offsetX, offsetY) {
+  const destData = canvas.data;
+  const canvasWidth = canvas.width;
+  for (let y = 0; y < image.height; y += 1) {
+    for (let x = 0; x < image.width; x += 1) {
+      const destIndex = ((offsetY + y) * canvasWidth + (offsetX + x)) * 4;
+      const srcIndex = (y * image.width + x) * 4;
+      const alpha = image.data[srcIndex + 3] / 255;
+      if (alpha <= 0) {
+        continue;
+      }
+      const invAlpha = 1 - alpha;
+      destData[destIndex] = Math.round(image.data[srcIndex] * alpha + 255 * invAlpha);
+      destData[destIndex + 1] = Math.round(image.data[srcIndex + 1] * alpha + 255 * invAlpha);
+      destData[destIndex + 2] = Math.round(image.data[srcIndex + 2] * alpha + 255 * invAlpha);
+      destData[destIndex + 3] = 255;
+    }
+  }
+}
+
+function buildPanelNarrativeLines(panel) {
+  if (!panel) {
+    return ['Panel metadata unavailable'];
+  }
+  const lines = [];
+  const scene = panel.scene || panel.content?.scene;
+  if (scene) {
+    lines.push(...wrapText(scene));
+  }
+  const prompt = panel.visualPrompt || panel.content?.visualPrompt;
+  if (prompt) {
+    lines.push(...wrapText(`Prompt: ${prompt}`));
+  }
+  const dialogueEntries = panel.dialogue || panel.content?.dialogue || [];
+  for (const entry of dialogueEntries) {
+    const speaker = entry.speaker || 'Narrator';
+    const text = entry.text || '';
+    if (text) {
+      lines.push(...wrapText(`${speaker}: ${text}`));
+    }
+  }
+  const characters = panel.characters?.map((char) => char.name).filter(Boolean);
+  if (characters && characters.length > 0) {
+    lines.push(`Characters: ${characters.join(', ')}`);
+  }
+  return lines.length > 0 ? lines : ['No scene description or dialogue'];
+}
+
+function wrapText(text, maxLength = 90) {
+  if (!text) {
+    return [];
+  }
+  const words = String(text).trim().split(/\s+/);
+  if (words.length === 0) {
+    return [];
+  }
+  const lines = [];
+  let current = '';
+  for (const word of words) {
+    if (!word) continue;
+    const tentative = current ? `${current} ${word}` : word;
+    if (tentative.length <= maxLength) {
+      current = tentative;
+      continue;
+    }
+    if (current) {
+      lines.push(current);
+      current = '';
+    }
+    if (word.length > maxLength) {
+      lines.push(...breakLongWord(word, maxLength));
+    } else {
+      current = word;
+    }
+  }
+  if (current) {
+    lines.push(current);
+  }
+  return lines;
+}
+
+function breakLongWord(word, maxLength) {
+  const segments = [];
+  for (let i = 0; i < word.length; i += maxLength) {
+    segments.push(word.slice(i, i + maxLength));
+  }
+  return segments;
+}
+
+function buildPanelBaseName(panel, index) {
+  const seq = padNumber(index + 1, 3);
+  const page = padNumber(panel?.page ?? 0, 2);
+  const idx = padNumber(panel?.index ?? 0, 2);
+  const slug = slugify(panel?.id) || `panel-${seq}`;
+  return `${seq}-p${page}-i${idx}-${slug}`;
+}
+
+function slugify(value) {
+  return String(value || '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .substring(0, 60) || 'panel';
+}
+
+function padNumber(value, size) {
+  const num = Number.isFinite(Number(value)) ? Number(value) : 0;
+  return String(Math.abs(Math.trunc(num))).padStart(size, '0');
+}
+
+function inferExtensionFromKey(key) {
+  const match = key?.match(/\.([a-z0-9]+)$/i);
+  return match ? match[1].toLowerCase() : null;
 }
 
 function createZipBuffer(entries) {
   let offset = 0;
-  const fileRecords = [];
   const centralRecords = [];
   const buffers = [];
 
